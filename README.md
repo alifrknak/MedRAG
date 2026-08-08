@@ -10,15 +10,16 @@ This project implements a high-precision, modular RAG (Retrieval-Augmented Gener
 
 ## 📌 Table of Contents
 - [1. Project Architecture & Pipeline](#1-project-architecture--pipeline)
-- [2. Hybrid Search (BM25 + Vector + RRF)](#2-hybrid-search-bm25--vector--rrf)
-- [3. Cross-Encoder Reranking](#3-cross-encoder-reranking)
+- [2. Hybrid Search & Why BM25 Was Chosen](#2-hybrid-search--why-bm25-was-chosen)
+- [3. Cross-Encoder Reranking & Why It Was Chosen](#3-cross-encoder-reranking--why-it-was-chosen)
 - [4. Chunking Strategy (Semantic Chunking)](#4-chunking-strategy-semantic-chunking)
 - [5. Embedding Model (`embeddinggemma:300m`)](#5-embedding-model-embeddinggemma300m)
 - [6. Similarity Threshold Analysis](#6-similarity-threshold-analysis)
-- [7. Architectural Trade-off Matrix](#7-architectural-trade-off-matrix)
-- [8. Dataset Citation](#8-dataset-citation)
-- [9. Installation & Quick Start](#9-installation--quick-start)
-- [10. License](#10-license)
+- [7. Sample Query Execution & Example Output](#7-sample-query-execution--example-output)
+- [8. Architectural Trade-off Matrix](#8-architectural-trade-off-matrix)
+- [9. Dataset Citation](#9-dataset-citation)
+- [10. Installation & Quick Start](#10-installation--quick-start)
+- [11. License](#11-license)
 
 ---
 
@@ -57,18 +58,35 @@ MedRAG/
 
 ---
 
-## 2. Hybrid Search (BM25 + Vector + RRF)
+## 2. Hybrid Search & Why BM25 Was Chosen
 
-- **BM25 Keyword Search:** Captures exact matches for medical acronyms, lab test codes (`HbA1c`, `BASO`), and specific drug/procedure names.
-- **Dense Vector Search (Ollama):** Captures semantic intent and medical concepts (*"şeker hastalığı"* ➔ *"diyabet"*).
-- **Reciprocal Rank Fusion (RRF):** Fuses ranks from both engines using:
-  $$\text{RRF\_Score}(d) = \frac{1}{60 + \text{rank}_{bm25}(d)} + \frac{1}{60 + \text{rank}_{vector}(d)}$$
+### Why BM25 Keyword Search?
+Dense vector models (`embeddinggemma:300m`) excel at understanding semantic concepts (e.g., mapping *"şeker hastalığı"* to *"diyabet"*). However, vector-only models suffer from **blind spots** when handling exact medical terminology:
+
+- **Medical Acronyms & Lab Test Codes:** Terms like `HbA1c`, `BASO`, `HGB`, or `ESG` can be blurred into generic "blood test" or "medical procedure" vectors.
+- **Specific Surgeries & Drug Names:** Rare terms (e.g., `Sleeve gastroplasti`, `Ablasyon`) require verbatim string matching.
+- **Numeric Parameters & Thresholds:** Specific ranges (e.g., `"120 mg/dl"`, `"30 yaş"`) are lost in vector representations.
+
+**BM25 (Sparse Keyword Retrieval)** uses term-frequency statistics (TF-IDF) to pinpoint exact keyword matches with pinpoint accuracy. Combining BM25 with Vector Search via **Reciprocal Rank Fusion (RRF)** ensures exact terminology is never missed while maintaining semantic flexibility.
+
+$$\text{RRF\_Score}(d) = \frac{1}{60 + \text{rank}_{bm25}(d)} + \frac{1}{60 + \text{rank}_{vector}(d)}$$
 
 ---
 
-## 3. Cross-Encoder Reranking
+## 3. Cross-Encoder Reranking & Why It Was Chosen
 
-Unlike Bi-Encoders which compare query and document vectors independently, the **Cross-Encoder Reranker** processes `[Query] + [Chunk Text]` simultaneously through self-attention layers. This deep pairwise evaluation re-ranks candidate chunks and places the single most authoritative answer at Rank #1.
+### Why Cross-Encoder Reranking?
+Standard vector search (ChromaDB / Bi-Encoder) computes query and document embeddings **independently** and calculates their cosine distance. While ultra-fast, Bi-Encoders cannot perform token-level interactions between the query and the chunk text, often placing the most authoritative answer at Rank #4 or #5 instead of Rank #1.
+
+**Cross-Encoder Reranking** passes the query and document text together into a single transformer model:
+
+$$\text{Input} = \text{[Query]} + \text{[Document Chunk]}$$
+
+All self-attention layers process the query words alongside the chunk words simultaneously, evaluating true semantic relevance.
+
+### Benefits of the Two-Stage Architecture:
+1. **Stage 1 (Bi-Encoder + BM25):** Rapidly narrows down thousands of chunks to the top 15 candidate passages in milliseconds.
+2. **Stage 2 (Cross-Encoder Reranker):** Performs deep pairwise inspection on the 15 candidates to promote the single most accurate chunk to **Rank #1**.
 
 ---
 
@@ -99,18 +117,79 @@ Unlike Bi-Encoders which compare query and document vectors independently, the *
 
 ---
 
-## 7. Architectural Trade-off Matrix
+## 7. Sample Query Execution & Example Output
+
+### ✅ Example 1: Successful Medical Retrieval Flow
+
+```bash
+python main.py "Diyabet hastalığının belirtileri ve tedavisi nedir?"
+```
+
+```text
+===========================================================================
+ Advanced Hybrid Vector Search & Reranking Service 
+ Features: BM25 + Ollama Vector + RRF + Cross-Encoder Reranker 
+ Similarity Threshold Filter Active (>= 0.48) 
+===========================================================================
+[+] Total Records in Vector DB: 446
+
+[+] Query: 'Diyabet hastalığının belirtileri ve tedavisi nedir?' (Similarity Threshold: >= 0.48)
+   Top Relevant Results (Found: 3 items):
+----------------------------------------------------------------------
+   Result #1:
+   • Vector Similarity Score : 0.5537
+   • Hybrid RRF Fusion Score : 0.017338
+   • Cross-Encoder Rerank    : 4.7394
+   • Source URL              : https://www.acibadem.com.tr/ilgi-alani/hemoglobin-hgb/
+   • Chunk Content           : Glike Hemoglobin Testi Neden Yapılır? Bu test, diyabet tanısı koymak, hastalığı izlemek ve tedavi etkinliğini değerlendirmek için yapılır. Kan şekeri seviyelerinin uzun vadeli kontrolü hakkında bilgi sağlar.
+----------------------------------------------------------------------
+   Result #2:
+   • Vector Similarity Score : 0.4913
+   • Hybrid RRF Fusion Score : 0.016329
+   • Cross-Encoder Rerank    : 3.5099
+   • Source URL              : https://www.acibadem.com.tr/ilgi-alani/acik-kalp-ameliyati/
+   • Chunk Content           : Testlerinizi Yaptırın Kalp damar hastalıkları genellikle belirti vermeden ilerler...
+----------------------------------------------------------------------
+```
+
+---
+
+### ⚠️ Example 2: Blocked / No Results Found Flow (Off-Topic Query)
+
+```bash
+python main.py "siber güvenlik"
+```
+
+```text
+===========================================================================
+ Advanced Hybrid Vector Search & Reranking Service 
+ Features: BM25 + Ollama Vector + RRF + Cross-Encoder Reranker 
+ Similarity Threshold Filter Active (>= 0.48) 
+===========================================================================
+[+] Total Records in Vector DB: 446
+
+[+] Query: 'siber güvenlik' (Similarity Threshold: >= 0.48)
+   [!] No relevant document found exceeding the similarity threshold (0.48).
+----------------------------------------------------------------------
+```
+
+> **Explanation:** Because `"siber güvenlik"` (cybersecurity) is a non-medical topic, its vector similarity score (`0.2731`) falls well below the `SIMILARITY_THRESHOLD = 0.48`. The Safety Gate triggers, blocking off-topic hallucination and notifying the user cleanly.
+
+---
+
+## 8. Architectural Trade-off Matrix
 
 | Architectural Decision | Chosen Approach | Alternative | Trade-off / Rationale |
 | :--- | :--- | :--- | :--- |
 | **Retrieval Architecture** | **Two-Stage Hybrid + Reranking** | Single Vector Search | **Trade-off:** Adds ~0.5s rerank latency, but increases search precision (Precision@K) by 20-30%. |
+| **Keyword Search** | **BM25 (Sparse)** | None (Vector-only) | **Trade-off:** Requires in-memory token index, but guarantees exact matching for medical acronyms (`HbA1c`) and test codes. |
 | **Rank Fusion** | **RRF (Reciprocal Rank Fusion)** | Score Normalization | **Trade-off:** RRF operates scale-free without requiring score calibration between BM25 and vector spaces. |
 | **Vector Storage** | **ChromaDB (Local)** | FAISS / Qdrant | **Trade-off:** ChromaDB persists text (`chunk_text`), URL, and 768d vectors together in a serverless SQLite/HNSW structure. |
 | **Chunking Method** | **Semantic Chunking** | Fixed-Size / Recursive | **Trade-off:** Requires sentence-level embedding calls, but guarantees topic coherence and superior search precision. |
 
 ---
 
-## 8. Dataset Citation
+## 9. Dataset Citation
 
 > **Dataset:** [`alibayram/turkish-hospital-medical-articles`](https://huggingface.co/datasets/alibayram/turkish-hospital-medical-articles)  
 > **Description:** Curated collection of medical articles from major hospital groups in Turkey.
@@ -127,7 +206,7 @@ Unlike Bi-Encoders which compare query and document vectors independently, the *
 
 ---
 
-## 9. Installation & Quick Start
+## 10. Installation & Quick Start
 
 ### Install Dependencies
 ```bash
@@ -160,6 +239,6 @@ python view_db.py
 
 ---
 
-## 10. License
+## 11. License
 
 This project is licensed under the [MIT License](./LICENSE). See the `LICENSE` file for details.
