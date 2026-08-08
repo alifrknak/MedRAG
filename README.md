@@ -20,7 +20,8 @@ This project implements a high-precision, modular RAG (Retrieval-Augmented Gener
 - [9. Architectural Trade-off Matrix](#9-architectural-trade-off-matrix)
 - [10. Dataset Citation](#10-dataset-citation)
 - [11. Installation & Quick Start](#11-installation--quick-start)
-- [12. License](#12-license)
+- [12. Future Roadmap & TODOs](#12-future-roadmap--todos)
+- [13. License](#13-license)
 
 ---
 
@@ -266,6 +267,15 @@ python view_db.py
 
 ---
 
-## 12. License
+## 12. Future Roadmap & TODOs
+
+- [ ] **1. Generative LLM Integration (Chatbot Response Layer):** Integrate local LLMs via Ollama (`gemma2:9b` or `qwen2.5:7b`) to synthesize fluid, grounded, citation-backed Turkish medical answers from retrieved passages.
+- [ ] **2. REST API & Web UI:** Develop a FastAPI backend (`/api/v1/search`, `/api/v1/rag`) and an interactive Web UI (Streamlit / React) for clinical and public query interfaces.
+- [ ] **3. Custom Document Ingestion (PDF / OCR Parser):** Implement PyPDF and Unstructured document loaders to allow uploading custom medical lab results, PDF reports, and patient epikriz notes into ChromaDB.
+- [ ] **4. Automated RAG Evaluation Framework (RAGAS):** Integrate the RAGAS framework to evaluate Faithfulness (Hallucination detection), Answer Relevance, and Context Precision automatically against synthetic medical benchmarks.
+
+---
+
+## 13. License
 
 This project is licensed under the [MIT License](./LICENSE). See the `LICENSE` file for details.
