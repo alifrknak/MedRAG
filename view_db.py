@@ -1,6 +1,10 @@
+import sys
 import logging
 import chromadb
 import config
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,7 +60,7 @@ def view_chroma_contents(
         vector = embeddings[i] if embeddings is not None and len(embeddings) > i else None
         vec_dim = len(vector) if vector is not None else "Yok"
 
-        print(f"📌 Kayıt #{i+1}")
+        print(f"[+] Kayıt #{i+1}")
         print(f"  • ID            : {chunk_id}")
         print(f"  • Kaynak URL    : {url if url else '(Yok / Null)'}")
         print(f"  • Metin (Chunk) : {doc}")

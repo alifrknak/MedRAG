@@ -1,61 +1,114 @@
+import sys
 import logging
+from typing import List
+from datasets import load_dataset, get_dataset_split_names
 from ollama_embedder import OllamaEmbedder
 from vector_db import LocalVectorDB
 from semantic_chunker import SemanticChunker
 
+# Windows konsolunda UTF-8 karakterlerin düzgün yazdırılmasını sağla
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def ingest_sample_articles():
+DATASET_NAME = "alibayram/turkish-hospital-medical-articles"
+
+def ingest_hf_dataset(limit: int = 100, reset_db: bool = False):
     """
-    Uzun makaleleri Semantic Chunker ile anlamsal parçalara ayırır
-    ve ChromaDB veritabanına kaydeder.
+    Hugging Face repo'sundan ('alibayram/turkish-hospital-medical-articles') 
+    hastane split'lerini gezerek 100 adet tıbbi makale çeker,
+    Semantic Chunker ile parçalar ve ChromaDB veritabanına kaydeder.
     """
     print("=" * 70)
-    print(" Makale Yükleme ve Vektörleştirme (Ingestion) ")
+    print(f" Hugging Face Dataset Ingestion: '{DATASET_NAME}' ")
     print("=" * 70)
 
-    embedder = OllamaEmbedder()
+    # 1. Servislerin Başlatılması
+    embedder = OllamaEmbedder(batch_size=32, timeout=120)
     vector_db = LocalVectorDB()
     semantic_chunker = SemanticChunker(embedder=embedder)
 
-    # Örnek Uzun Tıbbi ve Teknolojik Makaleler
-    long_article_1 = """
-    Diyabet (şeker hastalığı), insülin hormonunun eksikliği veya hücrelerin insüline direnç göstermesi sonucu gelişen kronik bir metabolizma hastalığıdır.
-    Kan şekerinin sürekli yüksek seyretmesi böbrekler, gözler ve kardiyovasküler sistem üzerinde kalıcı hasarlara yol açabilir.
-    Tip 1 diyabet otoimmün kaynaklıdır ve hastaların ömür boyu insülin tedavisi alması gerekir.
-    Tip 2 diyabet ise genellikle obezite, hareketli olmayan yaşam ve beslenme bozuklukları ile ilişkilidir ve yaşam tarzı değişiklikleri ile kontrol altına alınabilir.
-    
-    Tıbbi biyoteknoloji alanında son yıllarda yaşanan gelişmeler gen tedavileri ve m-RNA aşıları üzerine yoğunlaşmıştır.
-    CRISPR-Cas9 gen düzenleme teknolojisi sayesinde kalıtsal hastalıkların kökenindeki mutasyonlar hedeflenebilmektedir.
-    Kanser immünoterapisi de hastanın kendi bağışıklık hücrelerini tümörle savaşmak üzere eğitmeyi amaçlamaktadır.
-    
-    Kalp damar sağlığı için haftada en az 150 dakika orta düzeyde egzersiz önerilmektedir.
-    Doymuş yağ oranı yüksek gıdalardan kaçınmak ve Akdeniz tipi beslenmek koroner arter hastalığı riskini %30 oranında düşürmektedir.
-    Sigara kullanımı ve kronik stres hipertansiyonu tetikleyen en önemli çevresel faktörler arasındadır.
-    """
+    if reset_db:
+        print("\n[!] Veritabanı sıfırlanıyor...")
+        vector_db.reset()
 
-    long_article_2 = """
-    Radyolojide Yapay Zeka Uygulamaları ve Derin Öğrenme Modelleri.
-    Bilgisayarlı tomografi (BT) ve manyetik rezonans (MR) görüntülerinin analizinde evrişimli sinir ağları (CNN) insan gözünün kaçırabileceği mikro lezyonları tespit edebilmektedir.
-    Özellikle meme kanseri taramalarında mammografi görüntülerinin yapay zeka ile ön değerlendirmeye tabi tutulması yanlış negatif oranlarını düşürmüştür.
-    Buna karşın tıbbi verilerin gizliliği ve algoritmaların etik kullanımı klinik entegrasyondaki en büyük engellerdir.
-    """
+    # 2. Mevcut Split'leri Alma
+    try:
+        splits = get_dataset_split_names(DATASET_NAME)
+        logger.info(f"Mevcut hastane split'leri: {splits}")
+    except Exception as e:
+        logger.warning(f"Split listesi alınamadı, varsayılan liste kullanılacak: {e}")
+        splits = ['acibadem', 'medicana', 'memorial', 'medipol', 'medicalpark', 'florence']
 
-    articles = [
-        {"url": "https://saglik.gov.tr/makale/diyabet-ve-saglik", "text": long_article_1},
-        {"url": "https://medikalai.org/radyoloji-yapay-zeka", "text": long_article_2}
-    ]
+    processed_articles = 0
+    skipped_articles = 0
+    failed_articles = 0
+    all_chunks_to_insert = []
 
-    all_chunks = []
-    for idx, art in enumerate(articles, 1):
-        print(f"\n📄 Makale #{idx} işleniyor (URL: {art['url']})...")
-        chunks = semantic_chunker.chunk_document(art["text"], url=art["url"])
-        all_chunks.extend(chunks)
+    print(f"\n[1] Hugging Face üzerinden {limit} makale çekiliyor ve Semantic Chunker ile işleniyor...\n")
 
-    print(f"\n[+] Toplam {len(all_chunks)} parça ChromaDB'ye kaydediliyor...")
-    vector_db.add_chunks_batch(all_chunks)
-    print(f"✅ Yükleme tamamlandı. Güncel veritabanı kayıt sayısı: {vector_db.count()}")
+    for split_name in splits:
+        if processed_articles >= limit:
+            break
+
+        logger.info(f"--- '{split_name}' hastane grubu verileri yükleniyor ---")
+        try:
+            ds = load_dataset(DATASET_NAME, split=split_name, streaming=True)
+        except Exception as e:
+            logger.warning(f"Split '{split_name}' yüklenemedi: {e}")
+            continue
+
+        for item in ds:
+            if processed_articles >= limit:
+                break
+
+            url = item.get("url", "")
+            title = str(item.get("title", "") or "").strip()
+            
+            # İçerik alanını farklı sütun isimlerini destekleyecek şekilde al (content, article, text)
+            raw_content = item.get("content") or item.get("article") or item.get("text") or ""
+            article_text = str(raw_content).strip()
+
+            # Boş veya çok kısa metinleri atla
+            if not article_text or len(article_text) < 100:
+                skipped_articles += 1
+                continue
+
+            processed_articles += 1
+            full_text = f"{title}\n{article_text}" if title else article_text
+
+            logger.info(f"[{processed_articles}/{limit}] ({split_name}) Makale işleniyor: '{title[:45]}...'")
+
+            try:
+                # Semantic Chunking uygula
+                chunks = semantic_chunker.chunk_document(full_text, url=url)
+                all_chunks_to_insert.extend(chunks)
+            except Exception as err:
+                logger.error(f"Makale işlenirken hata oluştu ({title[:30]}): {err}")
+                failed_articles += 1
+                continue
+
+            # Her 25-30 chunk toplandığında veritabanına kaydet
+            if len(all_chunks_to_insert) >= 25:
+                vector_db.add_chunks_batch(all_chunks_to_insert)
+                logger.info(f"   [+] {len(all_chunks_to_insert)} adet chunk ChromaDB'ye aktarıldı.")
+                all_chunks_to_insert = []
+
+    # Kalan son chunk'ları veritabanına kaydet
+    if all_chunks_to_insert:
+        vector_db.add_chunks_batch(all_chunks_to_insert)
+        logger.info(f"   [+] Kalan {len(all_chunks_to_insert)} adet chunk ChromaDB'ye aktarıldı.")
+
+    print("\n" + "=" * 70)
+    print(" [OK] INGESTION TAMAMLANDI ")
+    print("=" * 70)
+    print(f" • İşlenen Toplam Makale Sayısı : {processed_articles}")
+    print(f" • Başarısız/Hatalı Makaleler   : {failed_articles}")
+    print(f" • Atlanan Kısa Makale Sayısı   : {skipped_articles}")
+    print(f" • Güncel Veritabanı Kayıt Sayısı: {vector_db.count()}")
+    print("=" * 70)
 
 if __name__ == "__main__":
-    ingest_sample_articles()
+    ingest_hf_dataset(limit=20, reset_db=False)

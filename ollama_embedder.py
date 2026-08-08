@@ -10,16 +10,21 @@ class OllamaEmbedder:
     """
     Yerel Ollama servisi üzerinden metinlerden embedding vektörü üreten sınıf.
     Varsayılan model: embeddinggemma:300m (768-boyutlu vektörler üretir)
+    Küçük batch'ler (batch_size=32) kullanarak timeout ve bellek aşımı sorunlarını engeller.
     """
 
     def __init__(
         self,
         ollama_url: str = config.OLLAMA_URL,
-        model_name: str = config.MODEL_NAME
+        model_name: str = config.MODEL_NAME,
+        batch_size: int = 32,
+        timeout: int = 120
     ):
         self.ollama_url = ollama_url.rstrip("/")
         self.model_name = model_name
         self.embed_endpoint = f"{self.ollama_url}/api/embed"
+        self.batch_size = batch_size
+        self.timeout = timeout
         self._verify_connection()
 
     def _verify_connection(self):
@@ -42,41 +47,52 @@ class OllamaEmbedder:
     def get_embeddings(self, texts: Union[str, List[str]]) -> List[List[float]]:
         """
         Bir veya birden fazla metin için embedding vektörü listesi üretir.
+        Gelen metin listesini batch_size (32) büyüklüğünde gruplara bölerek Ollama'ya gönderir.
         """
         if isinstance(texts, str):
             input_texts = [texts]
         else:
             input_texts = texts
 
-        payload = {
-            "model": self.model_name,
-            "input": input_texts
-        }
+        if not input_texts:
+            return []
 
-        try:
-            response = requests.post(
-                self.embed_endpoint,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=60
-            )
+        all_embeddings = []
 
-            if response.status_code != 200:
-                raise RuntimeError(
-                    f"Ollama API hatası (Status {response.status_code}): {response.text}"
+        # Metinleri mini-batch'lere bölerek gönder
+        for i in range(0, len(input_texts), self.batch_size):
+            batch = input_texts[i : i + self.batch_size]
+            payload = {
+                "model": self.model_name,
+                "input": batch
+            }
+
+            try:
+                response = requests.post(
+                    self.embed_endpoint,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=self.timeout
                 )
 
-            data = response.json()
-            embeddings = data.get("embeddings", [])
+                if response.status_code != 200:
+                    raise RuntimeError(
+                        f"Ollama API hatası (Status {response.status_code}): {response.text}"
+                    )
 
-            if not embeddings:
-                raise RuntimeError("Ollama boş embedding yanıtı döndürdü.")
+                data = response.json()
+                batch_embeddings = data.get("embeddings", [])
 
-            return embeddings
+                if not batch_embeddings:
+                    raise RuntimeError("Ollama boş embedding yanıtı döndürdü.")
 
-        except Exception as e:
-            logger.error(f"Embedding üretilirken hata oluştu: {e}")
-            raise e
+                all_embeddings.extend(batch_embeddings)
+
+            except Exception as e:
+                logger.error(f"Embedding üretilirken hata oluştu (Batch {i}-{i+len(batch)}): {e}")
+                raise e
+
+        return all_embeddings
 
     def get_embedding(self, text: str) -> List[float]:
         """Tek bir metin string'i için embedding vektörü döndürür."""

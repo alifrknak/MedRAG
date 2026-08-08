@@ -59,11 +59,6 @@ class LocalVectorDB:
     def add_chunks_batch(self, chunks: List[Dict[str, Any]]) -> List[str]:
         """
         Toplu halde chunk listesi ekler.
-        Her chunk dict öğesi şunları barındırabilir:
-        - chunk_text (zorunlu)
-        - chunk_vector (zorunlu)
-        - url (opsiyonel / nullable)
-        - chunk_id (opsiyonel)
         """
         if not chunks:
             return []
@@ -94,11 +89,13 @@ class LocalVectorDB:
     def search(
         self,
         query_vector: List[float],
-        top_k: int = 3
+        top_k: int = 3,
+        similarity_threshold: Optional[float] = config.SIMILARITY_THRESHOLD
     ) -> List[Dict[str, Any]]:
         """
         Sorgu vektörüne göre Cosine Similarity araması yapar.
-        Sonuç olarak url, chunk_text, chunk_vector ve similarity_score döndürür.
+        similarity_threshold parametresi verilmişse (örn: 0.50), skor bu eşik değerinin
+        altındaysa sonuçlar filtrelenir.
         """
         results = self.collection.query(
             query_embeddings=[query_vector],
@@ -118,7 +115,12 @@ class LocalVectorDB:
         matches = []
         for i in range(len(ids)):
             distance = distances[i]
-            similarity_score = 1.0 - distance
+            similarity_score = round(float(1.0 - distance), 4)
+            
+            # Eşik değeri kontrolü (Similarity threshold filtering)
+            if similarity_threshold is not None and similarity_score < similarity_threshold:
+                continue
+
             url_val = metadatas[i].get("url", "")
             
             matches.append({
@@ -126,7 +128,7 @@ class LocalVectorDB:
                 "url": url_val if url_val != "" else None,
                 "chunk_text": documents[i],
                 "chunk_vector": embeddings[i],
-                "similarity_score": round(float(similarity_score), 4),
+                "similarity_score": similarity_score,
                 "distance": round(float(distance), 4)
             })
 

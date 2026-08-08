@@ -1,24 +1,33 @@
 import sys
 import logging
+import config
 from ollama_embedder import OllamaEmbedder
 from vector_db import LocalVectorDB
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def search_query(query_text: str, embedder: OllamaEmbedder, vector_db: LocalVectorDB, top_k: int = 3):
+def search_query(
+    query_text: str,
+    embedder: OllamaEmbedder,
+    vector_db: LocalVectorDB,
+    top_k: int = 3,
+    threshold: float = config.SIMILARITY_THRESHOLD
+):
     """
     Sorgu metnini Ollama ile embedding'e dönüştürür ve ChromaDB'de arar.
+    Belirlenen eşik değerinin (threshold) altındaki sonuçlar filtrelenir.
     """
-    print(f"\n🔍 Sorgu: '{query_text}'")
+    print(f"\n🔍 Sorgu: '{query_text}' (Eşik Değeri / Threshold: >= {threshold})")
     query_vector = embedder.get_embedding(query_text)
-    results = vector_db.search(query_vector, top_k=top_k)
+    results = vector_db.search(query_vector, top_k=top_k, similarity_threshold=threshold)
 
     if not results:
-        print("   ❌ Hiçbir eşleşen kayıt bulunamadı.")
+        print(f"   ⚠️ Eşik değerini ({threshold}) geçen hiçbir alakalı doküman bulunamadı.")
+        print("-" * 70)
         return
 
-    print(f"   En Alakalı Sonuçlar (Top {len(results)}):")
+    print(f"   En Alakalı Sonuçlar (Bulunan: {len(results)} adet):")
     print("-" * 70)
     for idx, res in enumerate(results, 1):
         print(f"   Sonuç #{idx}:")
@@ -30,6 +39,7 @@ def search_query(query_text: str, embedder: OllamaEmbedder, vector_db: LocalVect
 def main():
     print("=" * 70)
     print(" Vektör Veritabanı Sorgulama Servisi (ChromaDB + Ollama) ")
+    print(" Eşik Değeri (Similarity Threshold) Aktif ")
     print("=" * 70)
 
     # 1. Bağlantıların kurulması
@@ -51,9 +61,8 @@ def main():
 
     # 3. Varsayılan Örnek Sorgular
     test_queries = [
-        "Kanser tedavisinde kullanılan gen düzenleme teknolojisi nedir?",
-        "Mammografi ve MR analizinde yapay zeka nasıl kullanılır?",
-        "Hipertansiyon ve kalp sağlığı için beslenme önerileri"
+        "Diyabet hastalığının belirtileri ve tedavisi nedir?",
+        "siber güvenlik"
     ]
 
     print("\n--- Örnek Sorgular Çalıştırılıyor ---")
