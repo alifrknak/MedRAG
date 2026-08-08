@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 class SemanticChunker:
     """
-    Ollama embedding'lerini kullanarak metni anlamsal konu değişimlerine (Semantic Breakpoints)
-    göre akıllı parçalara ayıran modül.
+    Splits documents into coherent semantic chunks based on topic shifts (Semantic Breakpoints)
+    calculated from sentence embedding Cosine Distances using Ollama.
     """
 
     def __init__(
@@ -28,7 +28,7 @@ class SemanticChunker:
 
     def split_into_sentences(self, text: str) -> List[str]:
         """
-        Metni nokta, soru işareti, ünlem ve satır başlarına göre temiz cümlelere ayırır.
+        Splits raw text into clean discrete sentences based on punctuation and line breaks.
         """
         raw_sentences = re.split(r'(?<=[.!?])\s+|\n+', text)
         sentences = [s.strip() for s in raw_sentences if s and len(s.strip()) > 10]
@@ -36,7 +36,7 @@ class SemanticChunker:
 
     @staticmethod
     def _cosine_distance(v1: np.ndarray, v2: np.ndarray) -> float:
-        """İki vektör arasındaki Cosine Mesafesini (1.0 - CosineSimilarity) hesaplar."""
+        """Calculates Cosine Distance (1.0 - CosineSimilarity) between two vectors."""
         dot = np.dot(v1, v2)
         norm1 = np.linalg.norm(v1)
         norm2 = np.linalg.norm(v2)
@@ -51,12 +51,12 @@ class SemanticChunker:
         url: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Uzun makale metnini alır:
-        1. Cümlelere böler.
-        2. Cümle vektörlerini Ollama batch API ile üretir.
-        3. Ardışık cümleler arasındaki anlamsal mesafeleri hesaplar.
-        4. Konu değişim noktalarını (Breakpoints) tespit eder.
-        5. Cümleleri gruplayıp chunk'ları ve chunk_vector'lerini döner.
+        Processes a document:
+        1. Segments text into sentences.
+        2. Generates sentence vector embeddings via Ollama batch API.
+        3. Calculates Cosine Distances between consecutive sentence vectors.
+        4. Detects Breakpoints at semantic topic shift thresholds.
+        5. Groups sentences into chunks and extracts chunk vectors.
         """
         sentences = self.split_into_sentences(text)
         if not sentences:
@@ -70,33 +70,32 @@ class SemanticChunker:
                 "chunk_vector": vec
             }]
 
-        logger.info(f"Makale {len(sentences)} cümleye ayrıldı. Vektörler Ollama modelinden isteniyor...")
+        logger.info(f"Document segmented into {len(sentences)} sentences. Requesting embeddings from Ollama...")
 
-        # 1. Tüm cümle vektörlerini tek bir toplu çağrıda üret (Batch processing)
+        # 1. Batch generate sentence vectors
         sentence_vectors = [np.array(v, dtype=np.float32) for v in self.embedder.get_embeddings(sentences)]
 
-        # 2. Ardışık cümle mesafelerini hesapla
+        # 2. Compute distances between consecutive sentence vectors
         distances = []
         for i in range(len(sentence_vectors) - 1):
             dist = self._cosine_distance(sentence_vectors[i], sentence_vectors[i+1])
             distances.append(dist)
 
-        # 3. Kırılma Eşik Değerini (Threshold) Belirle
+        # 3. Determine breakpoint distance threshold
         if distances:
             threshold = float(np.percentile(distances, self.threshold_percentile))
         else:
             threshold = config.DEFAULT_DISTANCE_THRESHOLD
 
-        logger.info(f"Anlamsal Mesafe Eşik Değeri ({self.threshold_percentile}. Persentil): {threshold:.4f}")
+        logger.info(f"Semantic Distance Threshold ({self.threshold_percentile}th Percentile): {threshold:.4f}")
 
-        # 4. Kırılma Noktalarını (Breakpoints) Bul
+        # 4. Identify Breakpoints and group sentences
         chunks_sentences = []
         current_chunk_sents = [sentences[0]]
 
         for i, dist in enumerate(distances):
             curr_len = sum(len(s) for s in current_chunk_sents)
             
-            # Mesafe eşiği aşıldıysa veya max uzunluğa ulaşıldıysa yeni chunk başlat
             if (dist >= threshold and curr_len >= self.min_chunk_len) or curr_len >= self.max_chunk_len:
                 chunks_sentences.append(" ".join(current_chunk_sents))
                 current_chunk_sents = [sentences[i+1]]
@@ -106,9 +105,9 @@ class SemanticChunker:
         if current_chunk_sents:
             chunks_sentences.append(" ".join(current_chunk_sents))
 
-        logger.info(f"Makale anlamsal olarak {len(chunks_sentences)} parçaya (chunk) bölündü.")
+        logger.info(f"Document semantically chunked into {len(chunks_sentences)} chunks.")
 
-        # 5. Oluşan Chunk'ların nihai embedding'lerini üret
+        # 5. Extract final embeddings for the generated chunks
         chunk_embeddings = self.embedder.get_embeddings(chunks_sentences)
 
         result_chunks = []
@@ -123,7 +122,6 @@ class SemanticChunker:
 
 
 if __name__ == "__main__":
-    # Test Senaryosu
     sample_article = """
     Diyabet (şeker hastalığı), insülin hormonunun üretilememesi veya hücreler tarafından verimli kullanılamaması durumudur. 
     Tip 1 diyabet genellikle çocukluk çağında bağışıklık sisteminin pankreas hücrelerine saldırmasıyla ortaya çıkar.
@@ -132,19 +130,15 @@ if __name__ == "__main__":
     Yapay zekâ ve derin öğrenme modelleri son yıllarda tıbbi görüntüleme alanında büyük başarılar yakalamıştır.
     Radyologların akciğer grafilerindeki tümörleri tespit etmesine yardımcı olan yapay zeka algoritmaları geliştirilmiştir.
     Özellikle evrişimli sinir ağları (CNN) medikal görüntü analizinde standart hale gelmiştir.
-    
-    Düzenli yürüyüş ve egzersiz yapmak kalp sağlığını korumada hayati bir role sahiptir.
-    Günde 30 dakika orta tempoda yürüyüş yapmak hipertansiyon riskini önemli ölçüde azaltır.
-    Akdeniz diyeti beslenme modeli de kalbe faydalı zeytinyağı ve lifli gıdalar barındırır.
     """
 
     chunker = SemanticChunker()
     chunks = chunker.chunk_document(sample_article, url="https://example.com/test-makale")
 
     print("\n" + "="*70)
-    print(f" Semantic Chunking Sonucu ({len(chunks)} Parça Bulundu) ")
+    print(f" Semantic Chunking Result ({len(chunks)} Chunks Generated) ")
     print("="*70)
     for idx, c in enumerate(chunks, 1):
-        print(f"\n🧩 Parça #{idx} (Karakter: {len(c['chunk_text'])}, Vektör Dim: {len(c['chunk_vector'])})")
+        print(f"\n🧩 Chunk #{idx} (Char Length: {len(c['chunk_text'])}, Vector Dim: {len(c['chunk_vector'])})")
         print(f" URL: {c['url']}")
-        print(f" Metin: {c['chunk_text']}")
+        print(f" Text: {c['chunk_text']}")

@@ -1,48 +1,48 @@
-# Similarity Threshold Kalibrasyon Raporu (Yöntem A)
+# Similarity Threshold Calibration Report (Method A)
 
-Bu rapor, yerel **Ollama (`embeddinggemma:300m`)** modeli ve **ChromaDB** vektör veritabanınızdaki **446 adet** tıbbi chunk üzerinde **20 Pozitif (Alakalı)** ve **10 Negatif (Alakasız)** sorgu ile gerçekleştirilen empirik (deneysel) kalibrasyon testinin sonuçlarını içerir.
+This report presents the empirical calibration results for **Ollama (`embeddinggemma:300m`)** and **ChromaDB** using **20 Positive (Relevant Medical)** and **10 Negative (Irrelevant Non-Medical)** queries evaluated against **446 medical text chunks**.
 
 ---
 
-## 📊 1. İstatistiksel Skor Dağılımı
+## 📊 1. Statistical Similarity Score Distribution
 
-| İstatistik Metric | Alakalı (Pozitif - 20 Sorgu) | Alakasız (Negatif - 10 Sorgu) | Marjin / Fark |
+| Metric | Relevant Queries (20 Positive) | Irrelevant Queries (10 Negative) | Margin / Difference |
 | :--- | :---: | :---: | :---: |
-| **Minimum Skor** | **0.4465** | 0.2320 | **+0.2145** |
-| **Maksimum Skor** | 0.8790 | **0.4901** | **+0.3889** |
-| **Ortalama (Mean)** | **0.6365** | **0.3720** | **+0.2645** |
-| **Medyan (Median)** | 0.6151 | 0.3765 | +0.2386 |
+| **Minimum Score** | **0.4465** | 0.2320 | **+0.2145** |
+| **Maximum Score** | 0.8790 | **0.4901** | **+0.3889** |
+| **Mean Score** | **0.6365** | **0.3720** | **+0.2645** |
+| **Median Score** | 0.6151 | 0.3765 | +0.2386 |
 
-### 📌 Kritik Bulgular:
-1. En yüksek alakasız sorgu skoru **`0.4901`** (*Siber güvenlik*) çıkmıştır.
-2. En düşük alakalı sorgu skoru **`0.4465`** (*Bebeklerde burun tıkanıklığı*) çıkmıştır.
-3. Alakalı sorguların ortalama skoru **`0.6365`** olup, alakasız sorguların ortalaması **`0.3720`** seviyesindedir.
+### 📌 Key Findings:
+1. Highest similarity score for an irrelevant query: **`0.4901`** (*"siber güvenlik"*).
+2. Lowest similarity score for a relevant query: **`0.4465`** (*"Bebeklerde burun tıkanıklığı"*).
+3. The mean score for relevant queries is **`0.6365`**, whereas irrelevant queries average **`0.3720`**.
 
 ---
 
-## 🧪 2. Eşik Değeri (Threshold) Simülasyonu ve Başarı Oranları
+## 🧪 2. Threshold Simulation & Accuracy Metrics
 
-| Eşik (Threshold) | Doğru Kabul (TP) | Yanlış Kabul (FP) | Kaçırılan (FN) | Genel Başarı (Accuracy) |
+| Threshold (T) | True Positives (TP) | False Positives (FP) | False Negatives (FN) | Accuracy |
 | :---: | :---: | :---: | :---: | :---: |
-| **0.300** | 20 | 8 | 0 | %73.3 |
-| **0.350** | 20 | 7 | 0 | %76.7 |
-| **0.400** | 20 | 3 | 0 | %90.0 |
-| **0.425** | 20 | 2 | 0 | **%93.3** |
-| **🏆 0.450** | **19** | **1** | **1** | **%93.3** |
-| **🏆 0.480** | **18** | **1** | **2** | **%90.0** |
-| **0.500** | 16 | 0 | 4 | %86.7 |
-| **0.550** | 16 | 0 | 4 | %86.7 |
+| **0.300** | 20 | 8 | 0 | 73.3% |
+| **0.350** | 20 | 7 | 0 | 76.7% |
+| **0.400** | 20 | 3 | 0 | 90.0% |
+| **0.425** | 20 | 2 | 0 | **93.3%** |
+| **🏆 0.450** | **19** | **1** | **1** | **93.3%** |
+| **🏆 0.480** | **18** | **1** | **2** | **90.0%** |
+| **0.500** | 16 | 0 | 4 | 86.7% |
+| **0.550** | 16 | 0 | 4 | 86.7% |
 
 ---
 
-## 🏆 3. Karar ve Optimizasyon
+## 🏆 3. Conclusion & Parameter Selection
 
-- **`0.500` ve üzeri** değerler, zayıf ifade edilmiş alakalı bazı soruları kaçırmaya başlamaktadır (%86.7 başarı).
-- **`0.400` ve altı** değerler, alakasız soruları içeri alma riski taşımaktadır (False Positive: 3+).
-- **En Dengeli ve İdeal Eşik Değeri (Optimal Threshold): `0.450 - 0.480`**
+- Thresholds of **`0.500` and above** begin dropping weakly-matched relevant queries (increasing False Negatives).
+- Thresholds of **`0.400` and below** risk admitting off-topic queries (increasing False Positives).
+- **Optimal Configured Threshold: `0.480`**
 
-### Neden `0.450 - 0.480`?
-1. Alakasız soruların %90'ını engeller.
-2. Alakalı tıbbi soruların %90-%95'ini başarıyla yakalar.
+### Rationale for `0.480`:
+1. Filters out ~90% of off-topic queries.
+2. Captures ~90% of genuine medical queries.
 
-> `config.py` dosyanızdaki **`SIMILARITY_THRESHOLD = 0.48`** olarak güncellenmiştir.
+> Configured in `config.py` as **`SIMILARITY_THRESHOLD = 0.48`**.

@@ -14,37 +14,36 @@ def view_chroma_contents(
     collection_name: str = config.COLLECTION_NAME
 ):
     """
-    Yerel ChromaDB veritabanındaki tüm koleksiyonları ve verileri görüntüler.
+    Displays all collections and persisted records in local ChromaDB.
     """
     print("=" * 70)
-    print(f" ChromaDB Veritabanı Görüntüleyici ({persist_dir}) ")
+    print(f" ChromaDB Vector Store Inspector ({persist_dir}) ")
     print("=" * 70)
 
     client = chromadb.PersistentClient(path=persist_dir)
     collections = client.list_collections()
 
-    print(f"\n[+] Mevcut Koleksiyon Sayısı: {len(collections)}")
+    print(f"\n[+] Active Collections Count: {len(collections)}")
     for col in collections:
-        print(f" - Koleksiyon Adı: {col.name} | Öge Sayısı: {col.count()}")
+        print(f" - Collection Name: {col.name} | Items Count: {col.count()}")
 
     print("\n" + "-" * 70)
-    print(f" Target Koleksiyon: '{collection_name}' ")
+    print(f" Target Collection: '{collection_name}' ")
     print("-" * 70)
 
     try:
         collection = client.get_collection(name=collection_name)
     except Exception as e:
-        print(f"[-] '{collection_name}' isimli koleksiyon bulunamadı: {e}")
+        print(f"[-] Collection '{collection_name}' not found: {e}")
         return
 
     total_count = collection.count()
-    print(f"Toplam Kayıt Sayısı: {total_count}\n")
+    print(f"Total Record Count: {total_count}\n")
 
     if total_count == 0:
-        print("Veritabanında henüz kayıt bulunmamaktadır.")
+        print("Vector database currently contains no records.")
         return
 
-    # Tüm kayıtları getir (documents, metadatas, embeddings)
     all_data = collection.get(include=["documents", "metadatas", "embeddings"])
 
     ids = all_data.get("ids", [])
@@ -58,15 +57,15 @@ def view_chroma_contents(
         meta = metadatas[i] if metadatas else {}
         url = meta.get("url") if meta else None
         vector = embeddings[i] if embeddings is not None and len(embeddings) > i else None
-        vec_dim = len(vector) if vector is not None else "Yok"
+        vec_dim = len(vector) if vector is not None else "N/A"
 
-        print(f"[+] Kayıt #{i+1}")
+        print(f"[+] Record #{i+1}")
         print(f"  • ID            : {chunk_id}")
-        print(f"  • Kaynak URL    : {url if url else '(Yok / Null)'}")
-        print(f"  • Metin (Chunk) : {doc}")
-        print(f"  • Vektör Boyutu : {vec_dim}")
+        print(f"  • Source URL    : {url if url else '(None / Null)'}")
+        print(f"  • Text (Chunk)  : {doc}")
+        print(f"  • Vector Dim    : {vec_dim}")
         if vector is not None:
-            print(f"  • Vektör (İlk 5): {vector[:5]}...")
+            print(f"  • Vector (First 5): {vector[:5]}...")
         print("-" * 70)
 
 if __name__ == "__main__":

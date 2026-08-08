@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 
 class LocalVectorDB:
     """
-    Yerel ChromaDB vektör veritabanı yöneticisi.
-    İstenen Şema (Nullable Destekli):
+    Local ChromaDB Manager for storing and querying medical article chunks.
+    Required Schema (Nullable Supported):
     - url (datasourceURL -> metadata)
-    - chunk_text (Metin içeriği -> document)
-    - chunk_vector (Float liste / vektör -> embedding)
+    - chunk_text (Document content -> document)
+    - chunk_vector (Float list / vector -> embedding)
     """
 
     def __init__(
@@ -32,8 +32,8 @@ class LocalVectorDB:
             metadata={"hnsw:space": "cosine"}
         )
         logger.info(
-            f"ChromaDB koleksiyonu hazır: '{self.collection_name}' "
-            f"(Mevcut öge sayısı: {self.collection.count()})"
+            f"ChromaDB collection ready: '{self.collection_name}' "
+            f"(Current record count: {self.collection.count()})"
         )
 
     def add_chunk(
@@ -43,7 +43,7 @@ class LocalVectorDB:
         url: Optional[str] = None,
         chunk_id: Optional[str] = None
     ) -> str:
-        """Tek bir chunk kaydını veritabanına ekler."""
+        """Inserts a single chunk into ChromaDB."""
         cid = chunk_id or str(uuid.uuid4())
         metadata = {"url": url if url is not None else ""}
 
@@ -53,12 +53,12 @@ class LocalVectorDB:
             documents=[chunk_text],
             metadatas=[metadata]
         )
-        logger.info(f"Chunk başarıyla eklendi ID: {cid}")
+        logger.info(f"Chunk inserted successfully ID: {cid}")
         return cid
 
     def add_chunks_batch(self, chunks: List[Dict[str, Any]]) -> List[str]:
         """
-        Toplu halde chunk listesi ekler.
+        Inserts a batch of chunks into ChromaDB.
         """
         if not chunks:
             return []
@@ -83,7 +83,7 @@ class LocalVectorDB:
             documents=documents,
             metadatas=metadatas
         )
-        logger.info(f"{len(chunks)} adet chunk veritabanına toplu olarak yüklendi.")
+        logger.info(f"Batch inserted {len(chunks)} chunks into ChromaDB.")
         return ids
 
     def search(
@@ -93,9 +93,8 @@ class LocalVectorDB:
         similarity_threshold: Optional[float] = config.SIMILARITY_THRESHOLD
     ) -> List[Dict[str, Any]]:
         """
-        Sorgu vektörüne göre Cosine Similarity araması yapar.
-        similarity_threshold parametresi verilmişse (örn: 0.50), skor bu eşik değerinin
-        altındaysa sonuçlar filtrelenir.
+        Executes Cosine Similarity search against chunk vectors.
+        Filters out results below similarity_threshold if specified (e.g. 0.48).
         """
         results = self.collection.query(
             query_embeddings=[query_vector],
@@ -117,7 +116,7 @@ class LocalVectorDB:
             distance = distances[i]
             similarity_score = round(float(1.0 - distance), 4)
             
-            # Eşik değeri kontrolü (Similarity threshold filtering)
+            # Similarity threshold filtering
             if similarity_threshold is not None and similarity_score < similarity_threshold:
                 continue
 
@@ -135,17 +134,17 @@ class LocalVectorDB:
         return matches
 
     def count(self) -> int:
-        """Koleksiyondaki toplam kayıt sayısını döner."""
+        """Returns total record count in ChromaDB collection."""
         return self.collection.count()
 
     def reset(self):
-        """Koleksiyonu sıfırlar ve temizler."""
+        """Clears and recreates the ChromaDB collection."""
         try:
             self.client.delete_collection(self.collection_name)
             self.collection = self.client.get_or_create_collection(
                 name=self.collection_name,
                 metadata={"hnsw:space": "cosine"}
             )
-            logger.info(f"Koleksiyon '{self.collection_name}' sıfırlandı.")
+            logger.info(f"Collection '{self.collection_name}' reset successfully.")
         except Exception as e:
-            logger.warning(f"Sıfırlama uyarısı: {e}")
+            logger.warning(f"Reset collection warning: {e}")

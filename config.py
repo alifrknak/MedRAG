@@ -1,19 +1,19 @@
 import os
 
-# Ollama Servisi Konfigürasyonu
+# Ollama Service Configuration
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 MODEL_NAME = os.getenv("MODEL_NAME", "embeddinggemma:300m")
 
-# ChromaDB Vektör Veritabanı Konfigürasyonu
+# ChromaDB Vector Database Configuration
 CHROMA_PATH = os.getenv("CHROMA_PATH", "./chroma_db")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "medical_chunks")
 
-# Semantic Chunking (Anlamsal Parçalama) Konfigürasyonu
+# Semantic Chunking Configuration
 SEMANTIC_THRESHOLD_PERCENTILE = float(os.getenv("SEMANTIC_THRESHOLD_PERCENTILE", "85"))
 DEFAULT_DISTANCE_THRESHOLD = float(os.getenv("DEFAULT_DISTANCE_THRESHOLD", "0.35"))
 MIN_CHUNK_CHAR_LEN = int(os.getenv("MIN_CHUNK_CHAR_LEN", "150"))
 MAX_CHUNK_CHAR_LEN = int(os.getenv("MAX_CHUNK_CHAR_LEN", "1200"))
 
-# Empirik Benchmark (Yöntem A) Sonucu Belirlenen Optimal Eşik Değeri
-# 20 Pozitif & 10 Negatif Sorgu Kalibrasyon Analizi İle %100 Doğruluk Sağlayan Değer
+# Vector Search Similarity Threshold Configuration
+# Results below this similarity threshold (e.g. 0.48) are filtered out.
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.48"))
