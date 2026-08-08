@@ -1,4 +1,4 @@
-# Similarity Threshold Calibration Report (Method A)
+# Similarity Threshold Calibration Report
 
 This report presents the empirical calibration results for **Ollama (`embeddinggemma:300m`)** and **ChromaDB** using **20 Positive (Relevant Medical)** and **10 Negative (Irrelevant Non-Medical)** queries evaluated against **446 medical text chunks**.
 
