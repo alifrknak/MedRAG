@@ -69,7 +69,7 @@ Dense vector models (`embeddinggemma:300m`) excel at understanding semantic conc
 
 **BM25 (Sparse Keyword Retrieval)** uses term-frequency statistics (TF-IDF) to pinpoint exact keyword matches with pinpoint accuracy. Combining BM25 with Vector Search via **Reciprocal Rank Fusion (RRF)** ensures exact terminology is never missed while maintaining semantic flexibility.
 
-$$\text{RRF\_Score}(d) = \frac{1}{60 + \text{rank}_{bm25}(d)} + \frac{1}{60 + \text{rank}_{vector}(d)}$$
+$$\text{RRF Score}(d) = \frac{1}{60 + \text{rank}_{\text{bm25}}(d)} + \frac{1}{60 + \text{rank}_{\text{vector}}(d)}$$
 
 ---
 
