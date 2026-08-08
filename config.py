@@ -15,5 +15,13 @@ MIN_CHUNK_CHAR_LEN = int(os.getenv("MIN_CHUNK_CHAR_LEN", "150"))
 MAX_CHUNK_CHAR_LEN = int(os.getenv("MAX_CHUNK_CHAR_LEN", "1200"))
 
 # Vector Search Similarity Threshold Configuration
-# Results below this similarity threshold (e.g. 0.48) are filtered out.
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.48"))
+
+# Hybrid Search (BM25 + Vector + RRF) Configuration
+USE_HYBRID_SEARCH = os.getenv("USE_HYBRID_SEARCH", "True").lower() == "true"
+RETRIEVAL_CANDIDATES_K = int(os.getenv("RETRIEVAL_CANDIDATES_K", "15"))
+RRF_K = int(os.getenv("RRF_K", "60"))
+
+# Reranking (Cross-Encoder) Configuration
+USE_RERANKER = os.getenv("USE_RERANKER", "True").lower() == "true"
+RERANKER_MODEL_NAME = os.getenv("RERANKER_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2")
