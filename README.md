@@ -78,7 +78,7 @@ Sistemde arama yapıldığında alakasız sorulara cevap verilmesini önlemek ve
 - **Alakasız Sorguların Ortalama Skoru:** `0.3720` (Minimum: `0.2320`, Maksimum: `0.4901`)
 - **Ortaya Çıkan Güvenlik Aralığı:** `0.48` eşik değeri tercih edildiğinde alakasız sorguların (*"java da bug nedir?", "siber güvenlik", "hava kaç derece?"*) tamamı başarıyla engellenmekte, alakalı tıbbi sorular ise yüksek doğrulukla yakalanmaktadır.
 
-> 📖 **Detaylı Rapor Atıfı:** Eşik değeri kalibrasyonunun empirik verileri, histogram analizleri ve doğruluk matrisleri **[threshold_calibration_report.md](file:///c:/Users/90535/source/magibu/MedRAG/threshold_calibration_report.md)** dosyasında detaylandırılmıştır.
+> 📖 **Detaylı Rapor Atıfı:** Eşik değeri kalibrasyonunun empirik verileri, histogram analizleri ve doğruluk matrisleri **[threshold_calibration_report.md](./threshold_calibration_report.md)** dosyasında detaylandırılmıştır.
 
 ---
 
@@ -143,3 +143,9 @@ python main.py "hava kaç derece?"
 ```bash
 python view_db.py
 ```
+
+---
+
+## 📜 Lisans (License)
+
+Bu proje [MIT Lisansı](./LICENSE) altında lisanslanmıştır. Detaylar için `LICENSE` dosyasına bakabilirsiniz.
