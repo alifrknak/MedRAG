@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,26 +8,28 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
         :root {
             --bg-dark: #090d16;
             --bg-card: rgba(17, 24, 39, 0.75);
             --bg-card-border: rgba(255, 255, 255, 0.08);
             --bg-input: rgba(30, 41, 59, 0.75);
-            
+
             --accent-primary: #0ea5e9;
             --accent-secondary: #10b981;
             --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #10b981 100%);
             --user-msg-gradient: linear-gradient(135deg, #2563eb 0%, #0d9488 100%);
-            
+
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --text-dim: #64748b;
-            
+
             --danger-bg: rgba(239, 68, 68, 0.12);
             --danger-border: rgba(239, 68, 68, 0.35);
             --danger-text: #fca5a5;
@@ -51,7 +54,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background-image: 
+            background-image:
                 radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.12) 0%, transparent 45%),
                 radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 45%);
         }
@@ -136,9 +139,20 @@
         }
 
         @keyframes pulse {
-            0% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(1.2); }
-            100% { opacity: 1; transform: scale(1); }
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.4;
+                transform: scale(1.2);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
 
         /* Layout Container */
@@ -153,42 +167,7 @@
             position: relative;
         }
 
-        /* Quick Pills Header */
-        .pills-container {
-            padding: 1rem 1.5rem;
-            display: flex;
-            gap: 0.6rem;
-            overflow-x: auto;
-            justify-content: center;
-        }
 
-        .pill {
-            background: rgba(30, 41, 59, 0.6);
-            border: 1px solid var(--bg-card-border);
-            color: var(--text-muted);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.82rem;
-            white-space: nowrap;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.45rem;
-        }
-
-        .pill:hover {
-            background: rgba(14, 165, 233, 0.15);
-            border-color: var(--accent-primary);
-            color: var(--text-main);
-            transform: translateY(-1px);
-        }
-
-        .pill.pill-warning:hover {
-            background: var(--danger-bg);
-            border-color: rgba(239, 68, 68, 0.5);
-            color: var(--danger-text);
-        }
 
         /* Chat Feed */
         .chat-feed {
@@ -209,8 +188,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .msg-row.user {
@@ -373,6 +359,44 @@
             color: #fecaca;
         }
 
+        /* AI Synthesized Answer Card */
+        .ai-answer-card {
+            background: rgba(14, 165, 233, 0.08);
+            border: 1px solid rgba(14, 165, 233, 0.25);
+            border-radius: 14px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .ai-answer-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--accent-primary);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(14, 165, 233, 0.2);
+        }
+
+        .ai-answer-body {
+            font-size: 0.96rem;
+            line-height: 1.75;
+            color: #f1f5f9;
+            white-space: pre-line;
+        }
+
+        .citation-tag {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            font-weight: 600;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+
         /* Chat Input Bar */
         .chat-input-area {
             padding: 1.2rem 1.5rem 1.8rem 1.5rem;
@@ -451,12 +475,25 @@
             animation: bounce 1.4s infinite ease-in-out;
         }
 
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
 
         @keyframes bounce {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1); }
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
         }
 
         /* Scrollbar Styling */
@@ -464,18 +501,22 @@
             width: 6px;
             height: 6px;
         }
+
         ::-webkit-scrollbar-track {
             background: transparent;
         }
+
         ::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.15);
             border-radius: 4px;
         }
+
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(255, 255, 255, 0.3);
         }
     </style>
 </head>
+
 <body>
 
     <!-- Header -->
@@ -500,22 +541,6 @@
     <!-- Main Content Container (Centered Chat Interface) -->
     <div class="app-container">
 
-        <!-- Quick Pills Header -->
-        <div class="pills-container">
-            <div class="pill" onclick="sendPreset('Diyabet hastalığının belirtileri ve tedavisi nedir?')">
-                <i class="fa-solid fa-stethoscope"></i> Diyabet Belirtileri
-            </div>
-            <div class="pill" onclick="sendPreset('Hipertansiyon ve beslenme rehberi')">
-                <i class="fa-solid fa-heart-pulse"></i> Hipertansiyon & Beslenme
-            </div>
-            <div class="pill" onclick="sendPreset('Göz tansiyonu (Glokom) neden olur?')">
-                <i class="fa-solid fa-eye"></i> Glokom / Göz Tansiyonu
-            </div>
-            <div class="pill pill-warning" onclick="sendPreset('siber güvenlik')">
-                <i class="fa-solid fa-shield-cat"></i> siber güvenlik (Tıbbi Dışı Test)
-            </div>
-        </div>
-
         <!-- Chat Scroll Feed -->
         <div class="chat-feed" id="chatFeed">
             <!-- Initial Welcome Bot Message -->
@@ -523,8 +548,9 @@
                 <div class="avatar"><i class="fa-solid fa-user-doctor"></i></div>
                 <div class="msg-bubble">
                     Merhaba! Ben <strong>MedRAG Sağlık Asistanı</strong>.<br>
-                    Hastanelerin klinik makalelerinden derlenen doğrulanmış tıbbi veritabanımızda arama yapabilir, merak ettiğiniz hastalıklar, belirtiler ve tedavi yöntemleri hakkında bilgi edinebilirsiniz.<br><br>
-                    <em>Başlamak için sorunuzu yazın veya yukarıdaki örnek konulardan birine tıklayın.</em>
+                    Hastanelerin klinik makalelerinden derlenen doğrulanmış tıbbi veritabanımızda arama yapabilir, merak
+                    ettiğiniz hastalıklar, belirtiler ve tedavi yöntemleri hakkında bilgi edinebilirsiniz.<br><br>
+                    <em>Başlamak için sorunuzu aşağıdaki kutuya yazabilirsiniz.</em>
                 </div>
             </div>
         </div>
@@ -532,7 +558,8 @@
         <!-- Input Bar -->
         <div class="chat-input-area">
             <div class="input-box-wrapper">
-                <input type="text" class="chat-input" id="userInput" placeholder="Tıbbi bir soru sorun... (Örn: Diyabet belirtileri ve tedavisi)" autocomplete="off">
+                <input type="text" class="chat-input" id="userInput"
+                    placeholder="Tıbbi bir soru sorun... (Örn: Diyabet belirtileri ve tedavisi)" autocomplete="off">
                 <button class="btn-send" id="sendBtn" title="Gönder">
                     <i class="fa-solid fa-paper-plane"></i>
                 </button>
@@ -633,7 +660,7 @@
                     <div class="avatar"><i class="fa-solid fa-user-doctor"></i></div>
                     <div class="msg-bubble">
                         <div class="typing-loader">
-                            <span style="font-size: 0.88rem; color: var(--text-muted); margin-right: 0.5rem;">Tıbbi makaleler taranıyor</span>
+                            <span style="font-size: 0.88rem; color: var(--text-muted); margin-right: 0.5rem;">Cevap hazırlanıyor...</span>
                             <div class="typing-dot"></div>
                             <div class="typing-dot"></div>
                             <div class="typing-dot"></div>
@@ -654,29 +681,53 @@
         function renderBotResponse(data, durationMs) {
             let contentHtml = '';
 
-            if (data.safety_gate_triggered) {
+            // Case 1: Chitchat / Non-Medical Refusal (No search executed)
+            if (data.search_executed === false) {
+                let ans = escapeHtml(data.synthesized_answer || 'Merhaba! Ben MedRAG Sağlık Asistanı. Sağlığınızla ilgili nasıl yardımcı olabilirim?');
+                contentHtml = `<div style="line-height: 1.6;">${ans}</div>`;
+            }
+            // Case 2: Safety Gate Triggered (Medical query but 0 results / low similarity)
+            else if (data.safety_gate_triggered) {
                 contentHtml = `
                     <div class="safety-banner">
                         <div class="safety-header">
                             <i class="fa-solid fa-shield-halved"></i>
-                            <span>Tıbbi Bilgi Filtresi (İlgisiz Konu Engellendi)</span>
+                            <span>Tıbbi Bilgi Filtresi (Eşleşme Bulunamadı)</span>
                         </div>
                         <div class="safety-body">
-                            Aradığınız konu (<strong>"${escapeHtml(data.query)}"</strong>) tıbbi veritabanımızdaki makalelerle uyuşmamaktadır.<br><br>
-                            Sağlık asistanımız, yanlış veya uydurma bilgi sunmamak için yalnızca doğrulanmış klinik makaleler üzerinden bilgi verir. Lütfen sağlık ile ilgili bir soru giriniz.
+                            Aradığınız konu (<strong>"${escapeHtml(data.query)}"</strong>) veritabanımızdaki doğrulanmış tıbbi makalelerle uyuşmamaktadır.<br><br>
+                            Sağlık asistanımız, uydurma bilgi sunmamak için yalnızca klinik rehberler üzerinden bilgi verir. Lütfen sağlık ile ilgili başka bir soru giriniz.
                         </div>
                     </div>
                 `;
-            } else {
+            }
+            // Case 3: Medical Query Executed with Verified Chunks & LLM Citation Synthesis
+            else {
+                let aiAnswerHtml = '';
+                if (data.synthesized_answer) {
+                    let formattedAns = escapeHtml(data.synthesized_answer);
+                    // Format citation tags like [Kaynak 1]
+                    formattedAns = formattedAns.replace(/\[Kaynak (\d+)\]/g, '<span class="citation-tag">[Kaynak $1]</span>');
+
+                    aiAnswerHtml = `
+                        <div class="ai-answer-card">
+                            <div class="ai-answer-header">
+                                <i class="fa-solid fa-brain-circuit"></i> Yapay Zeka Tıbbi Özet & Yanıt (Qwen2.5:7b)
+                            </div>
+                            <div class="ai-answer-body">${formattedAns}</div>
+                        </div>
+                    `;
+                }
+
                 let cardsHtml = '';
                 data.results.forEach((res, idx) => {
                     const matchPercent = Math.min(99, Math.max(50, Math.round(res.similarity_score * 100)));
-                    
+
                     const matchBadge = `<span class="badge badge-match"><i class="fa-solid fa-circle-check"></i> %${matchPercent} Eşleşme</span>`;
-                    const verifiedBadge = `<span class="badge badge-verified"><i class="fa-solid fa-hospital"></i> Doğrulanmış Kaynak</span>`;
-                    
-                    const urlLink = res.url ? 
-                        `<a href="${escapeHtml(res.url)}" target="_blank" class="card-url"><i class="fa-solid fa-arrow-up-right-from-square"></i> Kaynak Makale</a>` : 
+                    const verifiedBadge = `<span class="badge badge-verified"><i class="fa-solid fa-hospital"></i> Kaynak #${idx + 1}</span>`;
+
+                    const urlLink = res.url ?
+                        `<a href="${escapeHtml(res.url)}" target="_blank" class="card-url"><i class="fa-solid fa-arrow-up-right-from-square"></i> Kaynak Makale</a>` :
                         `<span class="card-url" style="color: var(--text-dim);"><i class="fa-solid fa-book-medical"></i> Hastane Makalesi</span>`;
 
                     cardsHtml += `
@@ -694,8 +745,9 @@
                 });
 
                 contentHtml = `
+                    ${aiAnswerHtml}
                     <div class="results-summary">
-                        <span><i class="fa-solid fa-file-medical" style="color: var(--accent-secondary);"></i> Sorunuzla ilgili <strong>${data.total_results}</strong> adet doğrulanmış tıbbi kaynak bulundu</span>
+                        <span><i class="fa-solid fa-file-medical" style="color: var(--accent-secondary);"></i> Kullanılan <strong>${data.total_results}</strong> adet doğrulanmış tıbbi kaynak metni:</span>
                     </div>
                     ${cardsHtml}
                 `;
@@ -750,4 +802,5 @@
         });
     </script>
 </body>
+
 </html>

@@ -1,22 +1,23 @@
 # 🏥 MedRAG: Advanced Hybrid Vector Search & Reranking RAG System
 
-This project implements a high-precision, modular RAG (Retrieval-Augmented Generation) pipeline for Turkish medical articles. It combines **Semantic Chunking** with a **Two-Stage Hybrid Search & Reranking Architecture**:
+This project implements a high-precision, modular RAG (Retrieval-Augmented Generation) pipeline for Turkish medical articles. It combines **Semantic Chunking** with a **Two-Stage Hybrid Search & Reranking Architecture** and an **Agentic Qwen2.5:7b LLM Tool-Calling Layer**:
 
-1. **Stage 1 (Hybrid Retrieval):** Combines **BM25 Keyword Search** and **Dense Vector Search** via local **Ollama (`embeddinggemma:300m`)** using **Reciprocal Rank Fusion (RRF)**.
-2. **Stage 2 (Deep Reranking):** Re-scores candidates using a **Cross-Encoder Reranker** (`cross-encoder/ms-marco-MiniLM-L-6-v2`).
-3. **Safety Gate:** Filters out irrelevant/off-topic queries using empirical **Similarity Thresholding (`SIMILARITY_THRESHOLD = 0.48`)**.
+1. **Stage 1 (Agentic Intent Decision & Tool Calling):** Local **Qwen2.5:7b** model evaluates user intent. Greetings and non-medical queries are handled instantly without DB search. Medical queries trigger `search_medical_database`.
+2. **Stage 2 (Hybrid Retrieval):** Combines **BM25 Keyword Search** and **Dense Vector Search** via local **Ollama (`embeddinggemma:300m`)** using **Reciprocal Rank Fusion (RRF)**.
+3. **Stage 3 (Deep Reranking):** Re-scores candidates using a **Cross-Encoder Reranker** (`cross-encoder/ms-marco-MiniLM-L-6-v2`).
+4. **Stage 4 (Safety Gate & Citation Synthesis):** Filters out irrelevant queries (`SIMILARITY_THRESHOLD = 0.48`) and synthesizes fluid Turkish answers with inline source citations (`[Kaynak 1]`).
 
 ---
 
 ## 📌 Table of Contents
-- [1. Project Architecture & Pipeline](#1-project-architecture--pipeline)
+- [1. Project Architecture & Agentic Flow](#1-project-architecture--agentic-flow)
 - [2. Hybrid Search & Why BM25 Was Chosen](#2-hybrid-search--why-bm25-was-chosen)
 - [3. Cross-Encoder Reranking & Why It Was Chosen](#3-cross-encoder-reranking--why-it-was-chosen)
 - [4. Chunking Strategy (Semantic Chunking)](#4-chunking-strategy-semantic-chunking)
 - [5. Embedding Model (`embeddinggemma:300m`) & Why Chosen](#5-embedding-model-embeddinggemma300m--why-chosen)
 - [6. Reranker Model (`ms-marco-MiniLM-L-6-v2`)](#6-reranker-model-ms-marco-minilm-l-6-v2)
 - [7. Similarity Threshold Analysis](#7-similarity-threshold-analysis)
-- [8. Sample Query Execution & Example Output](#8-sample-query-execution--example-output)
+- [8. Sample Query Execution & Web UI Screenshots](#8-sample-query-execution--web-ui-screenshots)
 - [9. Architectural Trade-off Matrix](#9-architectural-trade-off-matrix)
 - [10. Dataset Citation](#10-dataset-citation)
 - [11. Installation & Quick Start](#11-installation--quick-start)
@@ -25,7 +26,7 @@ This project implements a high-precision, modular RAG (Retrieval-Augmented Gener
 
 ---
 
-## 1. Project Architecture & Pipeline
+## 1. Project Architecture & Agentic Flow
 
 ```text
 MedRAG/
@@ -33,30 +34,39 @@ MedRAG/
 ├── ollama_embedder.py           # Local Ollama REST API client (batch_size=32)
 ├── semantic_chunker.py          # Semantic breakpoint chunking (Cosine Distance)
 ├── vector_db.py                 # ChromaDB + BM25 + RRF + Cross-Encoder Reranker
+├── llm_generator.py             # Qwen2.5:7b Agentic Tool-Calling & RAG Synthesis
+├── server.py                    # FastAPI Web & REST API service
+├── static/index.html            # Glassmorphic Medical Chatbot Web UI
+├── run_webui.py                 # Convenience server launcher
 ├── ingest.py                    # Dataset ingestion pipeline (HF -> Chunker -> ChromaDB)
 ├── main.py                      # Querying CLI service with threshold filtering
 ├── view_db.py                   # Vector DB inspection utility
-├── benchmark_threshold.py       # Threshold calibration & simulation script
-├── threshold_calibration_report.md  # Calibration report
 └── requirements.txt             # Project dependencies
 ```
 
-### ⚙️ Search Flow Pipeline
-```text
-[User Query]
-      │
-      ▼
-[Stage 1: Hybrid Retrieval (BM25 Keyword + Ollama Vector 768d)]
-      │  └─ Fuse ranks using Reciprocal Rank Fusion (RRF k=60) ➔ Top 15 Candidates
-      ▼
-[Stage 2: Cross-Encoder Reranking (ms-marco-MiniLM-L-6-v2)]
-      │  └─ Deep pairwise scoring of Query + Chunk Text
-      ▼
-[Stage 3: Similarity Threshold Safety Gate (>= 0.48)]
-      │  └─ Block off-topic/irrelevant questions cleanly
-      ▼
-[Final Output: Top Relevant Chunks / "No Relevant Document Found" Warning]
+### 🤖 Agentic Tool-Calling & Intent Decision Flow (Qwen2.5:7b)
+
+The system features an **Agentic Decision Layer** powered by **Qwen2.5:7b** via Ollama. Instead of running expensive vector embeddings and database searches unconditionally for every user input, Qwen2.5:7b evaluates the user intent against strict domain policies before deciding whether to invoke the `search_medical_database` tool:
+
+```mermaid
+graph TD
+    A[Kullanıcı Mesajı] --> B[Qwen2.5:7b Niyet Analizi & Araç Tanımı]
+    B -->|Arama Gerekmiyor: Günlük Selamlaşma| C[Doğrudan Sohbet Yanıtı - 0ms Vektör Araması]
+    B -->|Arama Gerekmiyor: Tıbbi Dışı Konu| D[Kapsam Dışı Reddetme Mesajı]
+    B -->|Araç Tetiklendi: search_medical_database| E[Hibrit Vektör Arama: Ollama 768d + BM25]
+    E --> F[Cross-Encoder Reranker: ms-marco-MiniLM-L6]
+    F --> G[Güvenlik Filtresi Safety Gate >= 0.48]
+    G -->|Tıbbi Kaynaklar Bulundu| H[Atıflı Tıbbi Sentez Yanıtı [Kaynak N] + Kaynak Kartları]
+    G -->|Eşik Altında / Eşleşme Yok| I[Güvenlik Uyarısı Bineri]
+    style C fill:#34d399,stroke:#333,color:#fff
+    style D fill:#f87171,stroke:#333,color:#fff
+    style H fill:#38bdf8,stroke:#333,color:#fff
 ```
+
+#### 📋 Intent Decision Rules:
+1. **Günlük Selamlaşma (*"Merhaba"*, *"Nasılsın"*):** Doğrudan sohbet yanıtı verilir, vektör veritabanı araması tamamen atlanır (0ms).
+2. **Tıbbi Dışı Konular (*Yazılım, Yemek, Spor, Siber Güvenlik vb.*):** Doğrudan reddetme mesajı verilir (*"Maalesef, ben yalnızca sağlık ve tıp alanında hizmet veren bir bilgi asistanıyım. Bu konuda yardımcı olamam. Sağlık alanında bir sorunuz var mıdır?"*).
+3. **Tıbbi Sorular (*"Diyabet belirtileri nedir?"*):** Otomatik `search_medical_database` aracı çağrılır. Veritabanından çekilen hastane makaleleri ile atıflı (`[Kaynak 1]`) yanıt sentezlenir.
 
 ---
 
@@ -110,10 +120,10 @@ All self-attention layers process the query words alongside the chunk words simu
 - **Memory Footprint:** ~621 MB
 
 ### Why Was `embeddinggemma:300m` Chosen?
-1. **Google Gemma Multilingual Architecture:** Built upon Google's state-of-the-art Gemma foundation model, providing superior cross-lingual semantic embedding capabilities for Turkish medical terminology compared to traditional legacy models (e.g., standard 384-dim MiniLM or uncased BERT).
+1. **Google Gemma Multilingual Architecture:** Built upon Google's state-of-the-art Gemma foundation model, providing superior cross-lingual semantic embedding capabilities for Turkish medical terminology compared to traditional legacy models.
 2. **768-Dimensional High Expressive Capacity:** Generates rich 768-dimensional float vectors capable of capturing subtle medical nuances, clinical symptoms, and complex anatomical relationships.
 3. **Ultra-Lightweight & Low Latency (~621 MB):** At only 300 million parameters, it achieves high inference speeds locally via Ollama without requiring expensive cloud GPU server farms.
-4. **100% Local Data Privacy:** Runs entirely inside the local environment via Ollama (`http://localhost:11434`), eliminating external API dependency and guaranteeing complete healthcare data privacy (KVKK / HIPAA compliance).
+4. **100% Local Data Privacy:** Runs entirely inside the local environment via Ollama (`http://localhost:11434`), eliminating external API dependency and guaranteeing complete healthcare data privacy.
 
 ---
 
@@ -121,16 +131,6 @@ All self-attention layers process the query words alongside the chunk words simu
 
 ### Model Overview & Purpose
 The project utilizes **`cross-encoder/ms-marco-MiniLM-L-6-v2`** as the Stage-2 Deep Reranker. Its purpose is to act as an authoritative evaluator that inspects candidate passages from Stage-1 and re-ranks them so the single most authoritative answer lands at **Rank #1**.
-
-### Why Was This Model Chosen?
-1. **Lightweight & High Efficiency (~80 MB):** Built on a 6-layer (`L-6`) MiniLM transformer architecture, executing inference on standard CPU in **20–50 ms** without requiring heavy GPU infrastructure.
-2. **Trained on Microsoft MS MARCO:** Trained on Microsoft's dataset of **500,000+ real search queries and human-selected answers**, giving it deep capability in recognizing true question-answer alignment.
-3. **Industry Standard:** Recognized as the default, benchmark-proven Cross-Encoder reranker across the Hugging Face and Sentence-Transformers ecosystems.
-
-### Basic Working Mechanism
-1. **Pairwise Input:** The model receives the user query and candidate chunk together as a single input: `[Query] + [Chunk Text]`.
-2. **Self-Attention Evaluation:** Unlike vector search which encodes query and chunk separately, self-attention layers cross-evaluate query terms against document terms simultaneously.
-3. **Relevance Score Output:** Calculates a numerical relevance score (logit). The system sorts candidate chunks by this score descending, ensuring the top-scoring passage becomes **Rank #1**.
 
 ---
 
@@ -143,63 +143,28 @@ The project utilizes **`cross-encoder/ms-marco-MiniLM-L-6-v2`** as the Stage-2 D
 
 ---
 
-## 8. Sample Query Execution & Example Output
+## 8. Sample Query Execution & Web UI Screenshots
 
-### ✅ Example 1: Successful Medical Retrieval Flow
+Below are actual Web UI interface screenshots demonstrating the three intent branches of the system:
 
-```bash
-python main.py "Diyabet hastalığının belirtileri ve tedavisi nedir?"
-```
+### 1. Günlük Selamlaşma (Direct Chitchat - 0ms Search)
+Kullanıcı selamlaştığında veya günlük sohbet başlattığında veritabanı araması yapılmaz, doğrudan sohbet yanıtı sunulur:
 
-```text
-===========================================================================
- Advanced Hybrid Vector Search & Reranking Service 
- Features: BM25 + Ollama Vector + RRF + Cross-Encoder Reranker 
- Similarity Threshold Filter Active (>= 0.48) 
-===========================================================================
-[+] Total Records in Vector DB: 446
-
-[+] Query: 'Diyabet hastalığının belirtileri ve tedavisi nedir?' (Similarity Threshold: >= 0.48)
-   Top Relevant Results (Found: 3 items):
-----------------------------------------------------------------------
-   Result #1:
-   • Vector Similarity Score : 0.5537
-   • Hybrid RRF Fusion Score : 0.017338
-   • Cross-Encoder Rerank    : 4.7394
-   • Source URL              : https://www.acibadem.com.tr/ilgi-alani/hemoglobin-hgb/
-   • Chunk Content           : Glike Hemoglobin Testi Neden Yapılır? Bu test, diyabet tanısı koymak, hastalığı izlemek ve tedavi etkinliğini değerlendirmek için yapılır. Kan şekeri seviyelerinin uzun vadeli kontrolü hakkında bilgi sağlar.
-----------------------------------------------------------------------
-   Result #2:
-   • Vector Similarity Score : 0.4913
-   • Hybrid RRF Fusion Score : 0.016329
-   • Cross-Encoder Rerank    : 3.5099
-   • Source URL              : https://www.acibadem.com.tr/ilgi-alani/acik-kalp-ameliyati/
-   • Chunk Content           : Testlerinizi Yaptırın Kalp damar hastalıkları genellikle belirti vermeden ilerler...
-----------------------------------------------------------------------
-```
+![1. Günlük Selamlaşma Yanıtı](file:///C:/Users/90535/Desktop/say_hello.png)
 
 ---
 
-### ⚠️ Example 2: Blocked / No Results Found Flow (Off-Topic Query)
+### 2. Tıbbi Soru & Atıflı Yapay Zeka Sentezi (Medical Tool Calling)
+Tıbbi bir soru sorulduğunda `search_medical_database` aracı tetiklenir, ChromaDB ve Reranker üzerinden çekilen klinik kaynaklarla atıflı (`[Kaynak 1]`) yanıt üretilir:
 
-```bash
-python main.py "siber güvenlik"
-```
+![2. Tıbbi Soru & Atıflı Yapay Zeka Yanıtı](file:///C:/Users/90535/Desktop/medical_quesiton.png)
 
-```text
-===========================================================================
- Advanced Hybrid Vector Search & Reranking Service 
- Features: BM25 + Ollama Vector + RRF + Cross-Encoder Reranker 
- Similarity Threshold Filter Active (>= 0.48) 
-===========================================================================
-[+] Total Records in Vector DB: 446
+---
 
-[+] Query: 'siber güvenlik' (Similarity Threshold: >= 0.48)
-   [!] No relevant document found exceeding the similarity threshold (0.48).
-----------------------------------------------------------------------
-```
+### 3. Kapsam Dışı / Tıbbi Dışı Konu Engelleme (Out-of-Scope Refusal)
+Tıp veya sağlık dışı konularda (yazılım, yemek vb.) soru sorulduğunda sistem veritabanı araması yapmadan nazikçe reddetme mesajı verir:
 
-> **Explanation:** Because `"siber güvenlik"` (cybersecurity) is a non-medical topic, its vector similarity score (`0.2731`) falls well below the `SIMILARITY_THRESHOLD = 0.48`. The Safety Gate triggers, blocking off-topic hallucination and notifying the user cleanly.
+![3. Kapsam Dışı Konu Engelleme](file:///C:/Users/90535/Desktop/outofscope_quesion.png)
 
 ---
 
@@ -207,13 +172,12 @@ python main.py "siber güvenlik"
 
 | Architectural Decision | Chosen Approach | Alternative | Trade-off / Rationale |
 | :--- | :--- | :--- | :--- |
-| **Embedding Model** | **`embeddinggemma:300m`** | `all-MiniLM-L6-v2` | **Trade-off:** 768-dim Google Gemma offers superior Turkish medical semantics vs older 384-dim models, while remaining lightweight (~621MB). |
+| **Generative LLM** | **`qwen2.5:7b`** | `gemma2:9b` / Cloud API | **Trade-off:** High Turkish fluency & tool-calling support running 100% locally via Ollama. |
+| **Embedding Model** | **`embeddinggemma:300m`** | `all-MiniLM-L6-v2` | **Trade-off:** 768-dim Google Gemma offers superior Turkish medical semantics vs older 384-dim models. |
 | **Retrieval Architecture** | **Two-Stage Hybrid + Reranking** | Single Vector Search | **Trade-off:** Adds ~0.5s rerank latency, but increases search precision (Precision@K) by 20-30%. |
 | **Reranker Model** | **`ms-marco-MiniLM-L-6-v2`** | `bge-reranker-large` | **Trade-off:** Extremely lightweight (~80MB) and fast on CPU, avoiding heavy GPU memory usage. |
-| **Keyword Search** | **BM25 (Sparse)** | None (Vector-only) | **Trade-off:** Requires in-memory token index, but guarantees exact matching for medical acronyms (`HbA1c`) and test codes. |
-| **Rank Fusion** | **RRF (Reciprocal Rank Fusion)** | Score Normalization | **Trade-off:** RRF operates scale-free without requiring score calibration between BM25 and vector spaces. |
-| **Vector Storage** | **ChromaDB (Local)** | FAISS / Qdrant | **Trade-off:** ChromaDB persists text (`chunk_text`), URL, and 768d vectors together in a serverless SQLite/HNSW structure. |
-| **Chunking Method** | **Semantic Chunking** | Fixed-Size / Recursive | **Trade-off:** Requires sentence-level embedding calls, but guarantees topic coherence and superior search precision. |
+| **Keyword Search** | **BM25 (Sparse)** | None (Vector-only) | **Trade-off:** Guarantees exact matching for medical acronyms (`HbA1c`) and test codes. |
+| **Vector Storage** | **ChromaDB (Local)** | FAISS / Qdrant | **Trade-off:** ChromaDB persists text (`chunk_text`), URL, and 768d vectors together in SQLite/HNSW. |
 
 ---
 
@@ -241,9 +205,13 @@ python main.py "siber güvenlik"
 pip install -r requirements.txt
 ```
 
-### Pull Ollama Model
+### Pull Ollama Models (Embedder & Generative LLM)
 ```bash
+# Embedding Model (300M):
 ollama pull embeddinggemma:300m
+
+# Generative Medical LLM (7B):
+ollama pull qwen2.5:7b
 ```
 
 ### Ingest Dataset
@@ -251,9 +219,9 @@ ollama pull embeddinggemma:300m
 python ingest.py
 ```
 
-### Run Search Queries
+### Run Search & LLM RAG Queries
 ```bash
-# Query relevant medical topics (Hybrid Retrieval + Reranker Active):
+# Query relevant medical topics (Hybrid Retrieval + Reranker + Qwen2.5:7b Answer Synthesis):
 python main.py "Diyabet hastalığının belirtileri ve tedavisi nedir?"
 
 # Off-topic query (Blocked by Similarity Threshold Filter):
@@ -276,10 +244,9 @@ python view_db.py
 
 ## 12. Future Roadmap & TODOs
 
-- [ ] **1. Generative LLM Integration (Chatbot Response Layer):** Integrate local LLMs via Ollama (`gemma2:9b` or `qwen2.5:7b`) to synthesize fluid, grounded, citation-backed Turkish medical answers from retrieved passages.
+- [x] **1. Generative LLM Integration (Chatbot Response Layer):** Integrate local LLMs via Ollama (`qwen2.5:7b` / `gemma2:9b`) to synthesize fluid, grounded, citation-backed Turkish medical answers from retrieved passages.
 - [x] **2. REST API & Web UI:** Develop a FastAPI backend (`/api/v1/search`, `/api/v1/stats`) and an interactive Web UI for clinical and public query interfaces.
-- [ ] **3. Custom Document Ingestion (PDF / OCR Parser):** Implement PyPDF and Unstructured document loaders to allow uploading custom medical lab results, PDF reports, and patient epikriz notes into ChromaDB.
-- [ ] **4. Automated RAG Evaluation Framework (RAGAS):** Integrate the RAGAS framework to evaluate Faithfulness (Hallucination detection), Answer Relevance, and Context Precision automatically against synthetic medical benchmarks.
+- [ ] **3. Automated RAG Evaluation Framework (RAGAS):** Integrate the RAGAS framework to evaluate Faithfulness (Hallucination detection), Answer Relevance, and Context Precision automatically against synthetic medical benchmarks.
 
 ---
 

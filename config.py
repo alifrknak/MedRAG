@@ -25,3 +25,10 @@ RRF_K = int(os.getenv("RRF_K", "60"))
 # Reranking (Cross-Encoder) Configuration
 USE_RERANKER = os.getenv("USE_RERANKER", "True").lower() == "true"
 RERANKER_MODEL_NAME = os.getenv("RERANKER_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+# Generative LLM Configuration (Chatbot Synthesis Layer)
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "qwen2.5:7b")
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+ENABLE_GENERATIVE_RAG = os.getenv("ENABLE_GENERATIVE_RAG", "True").lower() == "true"
+

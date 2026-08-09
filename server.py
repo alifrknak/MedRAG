@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 import config
 from ollama_embedder import OllamaEmbedder
 from vector_db import LocalVectorDB
+from llm_generator import LLMGenerator
 
 # Set stdout encoding to UTF-8 on Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -27,6 +28,7 @@ app = FastAPI(
 # Global lazy singletons
 embedder_instance: Optional[OllamaEmbedder] = None
 vector_db_instance: Optional[LocalVectorDB] = None
+llm_generator_instance: Optional[LLMGenerator] = None
 
 def get_embedder() -> OllamaEmbedder:
     global embedder_instance
@@ -42,20 +44,31 @@ def get_vector_db() -> LocalVectorDB:
         vector_db_instance = LocalVectorDB()
     return vector_db_instance
 
+def get_llm_generator() -> LLMGenerator:
+    global llm_generator_instance
+    if llm_generator_instance is None:
+        logger.info("Initializing LLMGenerator singleton...")
+        llm_generator_instance = LLMGenerator()
+    return llm_generator_instance
+
 class SearchRequest(BaseModel):
     query: str = Field(..., description="User search text or medical question", example="Diyabet hastalığının belirtileri ve tedavisi nedir?")
     top_k: int = Field(default=3, ge=1, le=20, description="Number of results to return")
     similarity_threshold: Optional[float] = Field(default=config.SIMILARITY_THRESHOLD, ge=0.0, le=1.0, description="Similarity cutoff threshold")
     use_hybrid: bool = Field(default=config.USE_HYBRID_SEARCH, description="Enable BM25 + Dense Vector RRF fusion")
     use_reranker: bool = Field(default=config.USE_RERANKER, description="Enable Cross-Encoder Reranker")
+    generate_answer: bool = Field(default=config.ENABLE_GENERATIVE_RAG, description="Enable Generative LLM answer synthesis")
 
 class SearchResponse(BaseModel):
     query: str
     total_results: int
     similarity_threshold: float
-    safety_gate_triggered: bool
+    search_executed: bool = True
+    safety_gate_triggered: bool = False
     safety_gate_message: Optional[str] = None
+    synthesized_answer: Optional[str] = None
     results: List[Dict[str, Any]]
+
 
 @app.on_event("startup")
 def startup_event():
@@ -86,32 +99,42 @@ def get_stats():
 @app.post("/api/v1/search", response_model=SearchResponse)
 def api_search(req: SearchRequest):
     """
-    Executes hybrid search + reranking over ChromaDB medical articles.
-    Enforces the Similarity Threshold Safety Gate filter.
+    Agentic Medical Search & LLM Response Endpoint.
+    1. Qwen2.5:7b tool calling inspects if search_medical_database is needed.
+    2. Daily Greetings & Non-Medical refusals skip vector DB search (search_executed=False).
+    3. Medical queries execute ChromaDB search + Reranker + RAG synthesis.
     """
     if not req.query.strip():
         raise HTTPException(status_code=400, detail="Search query cannot be empty.")
 
     try:
-        embedder = get_embedder()
-        vdb = get_vector_db()
-
-        # Step 1: Generate query vector
-        query_vector = embedder.get_embedding(req.query)
-
-        # Step 2: Execute search
         threshold = req.similarity_threshold if req.similarity_threshold is not None else config.SIMILARITY_THRESHOLD
 
-        results = vdb.search(
-            query_vector=query_vector,
-            query_text=req.query,
-            top_k=req.top_k,
-            similarity_threshold=threshold,
-            use_hybrid=req.use_hybrid,
-            use_reranker=req.use_reranker
-        )
+        # Define search executor callback to be passed to LLMGenerator
+        def execute_vector_search(query_text: str) -> List[Dict[str, Any]]:
+            embedder = get_embedder()
+            vdb = get_vector_db()
 
-        safety_triggered = (len(results) == 0)
+            query_vector = embedder.get_embedding(query_text)
+            raw_results = vdb.search(
+                query_vector=query_vector,
+                query_text=query_text,
+                top_k=req.top_k,
+                similarity_threshold=threshold,
+                use_hybrid=req.use_hybrid,
+                use_reranker=req.use_reranker
+            )
+            return raw_results
+
+        # Delegate to Agentic LLM Generator
+        llm_gen = get_llm_generator()
+        chat_outcome = llm_gen.process_chat(req.query, execute_vector_search)
+
+        search_executed = chat_outcome.get("search_executed", True)
+        safety_triggered = chat_outcome.get("safety_gate_triggered", False)
+        synthesized_answer = chat_outcome.get("synthesized_answer")
+        raw_results = chat_outcome.get("results", [])
+
         safety_msg = None
         if safety_triggered:
             safety_msg = (
@@ -121,7 +144,7 @@ def api_search(req: SearchRequest):
 
         # Format results (clean numpy floats/types for JSON)
         formatted_results = []
-        for r in results:
+        for r in raw_results:
             formatted_results.append({
                 "chunk_id": str(r.get("chunk_id", "")),
                 "url": r.get("url"),
@@ -136,8 +159,10 @@ def api_search(req: SearchRequest):
             query=req.query,
             total_results=len(formatted_results),
             similarity_threshold=threshold,
+            search_executed=search_executed,
             safety_gate_triggered=safety_triggered,
             safety_gate_message=safety_msg,
+            synthesized_answer=synthesized_answer,
             results=formatted_results
         )
     except Exception as e:

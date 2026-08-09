@@ -39,7 +39,20 @@ def search_query(
         print("-" * 70)
         return
 
-    print(f"   Top Relevant Results (Found: {len(results)} items):")
+    # Synthesize Generative RAG response via LLM
+    if config.ENABLE_GENERATIVE_RAG:
+        try:
+            from llm_generator import LLMGenerator
+            llm_gen = LLMGenerator()
+            print("\n[+] Generative LLM Answer (Qwen2.5:7b Synthesis):")
+            print("=" * 70)
+            ans = llm_gen.generate_answer(query_text, results)
+            print(ans)
+            print("=" * 70)
+        except Exception as e:
+            logger.warning(f"Generative LLM synthesis skipped: {e}")
+
+    print(f"\n   Top Relevant Source Chunks (Found: {len(results)} items):")
     print("-" * 70)
     for idx, res in enumerate(results, 1):
         print(f"   Result #{idx}:")
