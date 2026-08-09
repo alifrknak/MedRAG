@@ -147,24 +147,24 @@ The project utilizes **`cross-encoder/ms-marco-MiniLM-L-6-v2`** as the Stage-2 D
 
 Below are actual Web UI interface screenshots demonstrating the three intent branches of the system:
 
-### 1. Günlük Selamlaşma (Direct Chitchat - 0ms Search)
-Kullanıcı selamlaştığında veya günlük sohbet başlattığında veritabanı araması yapılmaz, doğrudan sohbet yanıtı sunulur:
+### 1. Direct Chitchat (0ms Search)
+When the user greets or initiates casual chitchat, no database search is performed, and a direct response is delivered immediately (0ms search latency):
 
-![1. Günlük Selamlaşma Yanıtı](assets/say_hello.png)
-
----
-
-### 2. Tıbbi Soru & Atıflı Yapay Zeka Sentezi (Medical Tool Calling)
-Tıbbi bir soru sorulduğunda `search_medical_database` aracı tetiklenir, ChromaDB ve Reranker üzerinden çekilen klinik kaynaklarla atıflı (`[Kaynak 1]`) yanıt üretilir:
-
-![2. Tıbbi Soru & Atıflı Yapay Zeka Yanıtı](assets/medical_quesiton.png)
+![1. Direct Chitchat Response](assets/say_hello.png)
 
 ---
 
-### 3. Kapsam Dışı / Tıbbi Dışı Konu Engelleme (Out-of-Scope Refusal)
-Tıp veya sağlık dışı konularda (yazılım, yemek vb.) soru sorulduğunda sistem veritabanı araması yapmadan nazikçe reddetme mesajı verir:
+### 2. Medical Query & Citation-Backed Synthesis (Tool Calling)
+When a medical query is asked, the `search_medical_database` tool is triggered, retrieving clinical sources via ChromaDB & Cross-Encoder Reranker to synthesize a citation-backed (`[Kaynak 1]`) answer:
 
-![3. Kapsam Dışı Konu Engelleme](assets/outofscope_quesion.png)
+![2. Medical Query & Citation Synthesis](assets/medical_quesiton.png)
+
+---
+
+### 3. Out-of-Scope Query Refusal
+When non-medical topics (e.g., software, cooking, sports) are asked, the system returns a polite refusal message instantly without performing a database search:
+
+![3. Out-of-Scope Refusal](assets/outofscope_quesion.png)
 
 ---
 
