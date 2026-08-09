@@ -50,14 +50,14 @@ The system features an **Agentic Decision Layer** powered by **Qwen2.5:7b** via 
 
 ```mermaid
 graph TD
-    A[Kullanıcı Mesajı] --> B[Qwen2.5:7b Niyet Analizi & Araç Tanımı]
-    B -->|Arama Gerekmiyor: Günlük Selamlaşma| C[Doğrudan Sohbet Yanıtı - 0ms Vektör Araması]
-    B -->|Arama Gerekmiyor: Tıbbi Dışı Konu| D[Kapsam Dışı Reddetme Mesajı]
-    B -->|Araç Tetiklendi: search_medical_database| E[Hibrit Vektör Arama: Ollama 768d + BM25]
-    E --> F[Cross-Encoder Reranker: ms-marco-MiniLM-L6]
-    F --> G[Güvenlik Filtresi Safety Gate >= 0.48]
-    G -->|Tıbbi Kaynaklar Bulundu| H[Atıflı Tıbbi Sentez Yanıtı [Kaynak N] + Kaynak Kartları]
-    G -->|Eşik Altında / Eşleşme Yok| I[Güvenlik Uyarısı Bineri]
+    A["Kullanıcı Mesajı"] --> B["Qwen2.5:7b Niyet Analizi & Araç Tanımı"]
+    B -->|Arama Gerekmiyor: Günlük Selamlaşma| C["Doğrudan Sohbet Yanıtı - 0ms Vektör Araması"]
+    B -->|Arama Gerekmiyor: Tıbbi Dışı Konu| D["Kapsam Dışı Reddetme Mesajı"]
+    B -->|Araç Tetiklendi: search_medical_database| E["Hibrit Vektör Arama: Ollama 768d + BM25"]
+    E --> F["Cross-Encoder Reranker: ms-marco-MiniLM-L6"]
+    F --> G["Güvenlik Filtresi Safety Gate >= 0.48"]
+    G -->|Tıbbi Kaynaklar Bulundu| H["Atıflı Tıbbi Sentez Yanıtı [Kaynak N] + Kaynak Kartları"]
+    G -->|Eşik Altında / Eşleşme Yok| I["Güvenlik Uyarısı Bineri"]
     style C fill:#34d399,stroke:#333,color:#fff
     style D fill:#f87171,stroke:#333,color:#fff
     style H fill:#38bdf8,stroke:#333,color:#fff
@@ -150,21 +150,21 @@ Below are actual Web UI interface screenshots demonstrating the three intent bra
 ### 1. Günlük Selamlaşma (Direct Chitchat - 0ms Search)
 Kullanıcı selamlaştığında veya günlük sohbet başlattığında veritabanı araması yapılmaz, doğrudan sohbet yanıtı sunulur:
 
-![1. Günlük Selamlaşma Yanıtı](file:///C:/Users/90535/Desktop/say_hello.png)
+![1. Günlük Selamlaşma Yanıtı](assets/say_hello.png)
 
 ---
 
 ### 2. Tıbbi Soru & Atıflı Yapay Zeka Sentezi (Medical Tool Calling)
 Tıbbi bir soru sorulduğunda `search_medical_database` aracı tetiklenir, ChromaDB ve Reranker üzerinden çekilen klinik kaynaklarla atıflı (`[Kaynak 1]`) yanıt üretilir:
 
-![2. Tıbbi Soru & Atıflı Yapay Zeka Yanıtı](file:///C:/Users/90535/Desktop/medical_quesiton.png)
+![2. Tıbbi Soru & Atıflı Yapay Zeka Yanıtı](assets/medical_quesiton.png)
 
 ---
 
 ### 3. Kapsam Dışı / Tıbbi Dışı Konu Engelleme (Out-of-Scope Refusal)
 Tıp veya sağlık dışı konularda (yazılım, yemek vb.) soru sorulduğunda sistem veritabanı araması yapmadan nazikçe reddetme mesajı verir:
 
-![3. Kapsam Dışı Konu Engelleme](file:///C:/Users/90535/Desktop/outofscope_quesion.png)
+![3. Kapsam Dışı Konu Engelleme](assets/outofscope_quesion.png)
 
 ---
 
