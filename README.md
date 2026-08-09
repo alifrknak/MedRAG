@@ -145,7 +145,7 @@ The project utilizes **`cross-encoder/ms-marco-MiniLM-L-6-v2`** as the Stage-2 D
 
 ## 8. Sample Query Execution & Web UI Screenshots
 
-Below are actual Web UI interface screenshots demonstrating the three intent branches of the system:
+Below are actual Web UI interface screenshots demonstrating the four query scenarios and intent branches of the system:
 
 ### 1. Direct Chitchat (0ms Search)
 When the user greets or initiates casual chitchat, no database search is performed, and a direct response is delivered immediately (0ms search latency):
@@ -165,6 +165,13 @@ When a medical query is asked, the `search_medical_database` tool is triggered, 
 When non-medical topics (e.g., software, cooking, sports) are asked, the system returns a polite refusal message instantly without performing a database search:
 
 ![3. Out-of-Scope Refusal](assets/outofscope_quesion.png)
+
+---
+
+### 4. In-Scope Medical Query with No Verified Article Found (Safety Gate)
+When a medical query is asked but no matching hospital articles exist in the database (or similarity scores are below threshold), the system triggers the Safety Gate and returns a clear, polite notification indicating that no grounded sources were found:
+
+![4. In-Scope Query with No Article Found](assets/inScopebutnoresouce_in_anyArtice.png)
 
 ---
 

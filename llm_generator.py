@@ -27,9 +27,14 @@ MEDICAL_SEARCH_TOOL = {
 
 INTENT_SYSTEM_PROMPT = """Sen MedRAG klinik sağlık asistanısın. Kullanıcının girdisini inceleyip aşağıdaki 3 KESİN KURALA göre karar ver:
 
-1. KURAL (TIBBİ / SAĞLIK SORULARI): Kullanıcı herhangi bir hastalık, semptom, sağlık sorusu, tedavi, ilaç veya vücut sağlığı ile ilgili soru sorduğunda KESİNLİKLE 'search_medical_database' fonksiyonunu çağır. Kendi genel bilgilerinden tıbbi yanıt verme.
-2. KURAL (GÜNLÜK SELAMLAŞMA & SOHBET): Kullanıcı 'merhaba', 'selam', 'nasılsın', 'teşekkürler', 'iyi günler' gibi günlük nezaket ifadeleri kullandığında fonksiyon çağırma; doğrudan nazik ve yardımsever bir karşılama yanıtı ver (Örn: "Merhaba! Ben MedRAG Sağlık Asistanı. Sağlığınızla ilgili nasıl yardımcı olabilirim?").
-3. KURAL (TIBBİ DIŞI KONULAR): Kullanıcı sağlık ve tıp DIŞINDAKİ konularda (yazılım, kodlama, yemek tarifi, siber güvenlik, spor, finans vb.) soru sorduğunda fonksiyon çağırma; KESİNLİKLE tam olarak şu standart reddetme yanıtını ver:
+1. KURAL (TIBBİ / SAĞLIK / İLAÇ / TEDAVİ / SEMPTOM SORULARI - KESİNLİKLE TOOL CALL YAP):
+Kullanıcı herhangi bir hastalık, semptom, sağlık sorusu, tedavi, ameliyat, ilaç, ağrı, yaralanma, beslenme/diyet veya vücut sağlığı ile ilgili soru sorduğunda (Örn: 'tedavi nasıl yapılır', 'nedir', 'belirtileri nelerdir', 'ne yapmalıyım', 'ilaç kullanımı', 'parmağım kesildi', 'renk körlüğü' vb.) KESİNLİKLE 'search_medical_database' fonksiyonunu çağır. Kendi genel bilgilerinden doğrudan tıbbi yanıt VERME.
+
+2. KURAL (GÜNLÜK SELAMLAŞMA & SOHBET):
+Kullanıcı YALNIZCA 'merhaba', 'selam', 'nasılsın', 'teşekkürler', 'iyi günler', 'sen kimsin' gibi günlük nezaket/tanışma ifadeleri kullandığında fonksiyon çağırma; doğrudan nazik ve yardımsever bir karşılama yanıtı ver (Örn: "Merhaba! Ben MedRAG Sağlık Asistanı. Sağlığınızla ilgili nasıl yardımcı olabilirim?").
+
+3. KURAL (TIBBİ DIŞI KONULAR):
+Kullanıcı sağlık ve tıp DIŞINDAKİ konularda (yazılım, kodlama, yemek tarifi, siber güvenlik, spor, finans vb.) soru sorduğunda fonksiyon çağırma; KESİNLİKLE tam olarak şu standart reddetme yanıtını ver:
 "Maalesef, ben yalnızca sağlık ve tıp alanında hizmet veren bir bilgi asistanıyım. Bu konuda yardımcı olamam. Sağlık alanında bir sorunuz var mıdır?"
 """
 
@@ -70,12 +75,22 @@ class LLMGenerator:
             pass
         return False
 
+    def _is_simple_greeting(self, text: str) -> bool:
+        cleaned = text.strip().lower().strip("?!.,")
+        greetings = {
+            "merhaba", "selam", "selamlar", "nasılsın", "iyi günler", 
+            "günaydın", "iyi akşamlar", "teşekkürler", "teşekkür ederim", 
+            "sağol", "hoşçakal", "baybay", "güle güle", "sen kimsin", 
+            "kimsin", "ne yapabilirsin", "yardım et"
+        }
+        return cleaned in greetings
+
     def process_chat(self, user_query: str, search_executor: Callable[[str], List[Dict[str, Any]]]) -> Dict[str, Any]:
         """
         Agentic Chat Processing Flow:
         Step 1: Pass query + tool definition to Qwen2.5:7b.
         Step 2: Inspect if Qwen2.5:7b emitted a tool call to 'search_medical_database'.
-        - If NO Tool Call: Return direct LLM text (Greeting or Non-Medical Refusal Notice) with search_executed=False.
+        - If NO Tool Call: Verify if greeting/non-medical refusal. If medical, force vector search fallback.
         - If Tool Call Emitted: Execute search_executor(medical_query), then synthesize RAG answer with citations.
         """
         logger.info(f"Processing query via Agentic LLM ({self.model_name}): '{user_query}'")
@@ -105,19 +120,33 @@ class LLMGenerator:
             message = res_json.get("message", {})
             tool_calls = message.get("tool_calls", [])
 
-            # Case A: No Tool Call (Direct Chitchat or Non-Medical Refusal)
+            # Case A: No Tool Call Emitted by Ollama
             if not tool_calls:
                 llm_response_text = message.get("content", "").strip()
-                if not llm_response_text:
-                    llm_response_text = "Merhaba! Ben MedRAG Sağlık Asistanı. Sağlığınızla ilgili nasıl yardımcı olabilirim?"
 
-                logger.info("LLM responded directly without tool calling (Chitchat / Non-Medical Refusal).")
-                return {
-                    "search_executed": False,
-                    "safety_gate_triggered": False,
-                    "synthesized_answer": llm_response_text,
-                    "results": []
-                }
+                # Check if it's a simple daily greeting
+                if self._is_simple_greeting(user_query):
+                    if not llm_response_text:
+                        llm_response_text = "Merhaba! Ben MedRAG Sağlık Asistanı. Sağlığınızla ilgili nasıl yardımcı olabilirim?"
+                    return {
+                        "search_executed": False,
+                        "safety_gate_triggered": False,
+                        "synthesized_answer": llm_response_text,
+                        "results": []
+                    }
+
+                # Check if LLM emitted a standard non-medical refusal
+                if "yalnızca sağlık ve tıp alanında" in llm_response_text.lower() or "bu konuda yardımcı olamam" in llm_response_text.lower():
+                    return {
+                        "search_executed": False,
+                        "safety_gate_triggered": False,
+                        "synthesized_answer": llm_response_text,
+                        "results": []
+                    }
+
+                # If LLM responded directly without tool call for a medical query, FORCE VECTOR SEARCH FALLBACK!
+                logger.warning(f"LLM did not emit tool_call for query '{user_query}'. Forcing fallback vector search to prevent hallucination.")
+                return self._execute_fallback_search(user_query, search_executor)
 
             # Case B: Tool Call Triggered (Medical Question)
             tool_call = tool_calls[0]
@@ -140,10 +169,15 @@ class LLMGenerator:
             # Case B1: Safety Gate Triggered (0 results / below threshold)
             if not search_results:
                 logger.info("Safety Gate triggered: Search results were below similarity threshold.")
+                no_source_msg = (
+                    "⚠️ *Aradığınız tıbbi konuyla ilgili veritabanımızda doğrulanmış klinik kaynak bulunamamıştır. "
+                    "MedRAG güvenliğiniz için kaynak kullanamadığı durumlarda yanıt üretmemektedir. "
+                    "Kesin bilgi ve tedavi için lütfen bir uzman hekime başvurunuz.*"
+                )
                 return {
                     "search_executed": True,
                     "safety_gate_triggered": True,
-                    "synthesized_answer": None,
+                    "synthesized_answer": no_source_msg,
                     "results": []
                 }
 
@@ -205,11 +239,25 @@ Lütfen yukarıdaki tıbbi kaynak pasajlarını esas alarak kullanıcının soru
         return "Sorgunuzla ilgili doğrulanmış klinik kaynak pasajları aşağıda listelenmiştir."
 
     def _execute_fallback_search(self, query: str, search_executor: Callable[[str], List[Dict[str, Any]]]) -> Dict[str, Any]:
-        """Fallback search execution if initial Ollama LLM call fails."""
+        """Fallback search execution if initial Ollama LLM call fails or misses tool calling."""
         results = search_executor(query)
+        if not results:
+            no_source_msg = (
+                "⚠️ *Aradığınız tıbbi konuyla ilgili veritabanımızda doğrulanmış klinik kaynak bulunamamıştır. "
+                "MedRAG güvenliğiniz için kaynak kullanamadığı durumlarda yanıt üretmemektedir. "
+                "Kesin bilgi ve tedavi için lütfen bir uzman hekime başvurunuz.*"
+            )
+            return {
+                "search_executed": True,
+                "safety_gate_triggered": True,
+                "synthesized_answer": no_source_msg,
+                "results": []
+            }
+
+        synthesized_answer = self.synthesize_rag_response(query, results)
         return {
             "search_executed": True,
-            "safety_gate_triggered": (len(results) == 0),
-            "synthesized_answer": None,
+            "safety_gate_triggered": False,
+            "synthesized_answer": synthesized_answer,
             "results": results
         }
