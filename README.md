@@ -104,10 +104,24 @@ All self-attention layers process the query words alongside the chunk words simu
 
 ## 4. Chunking Strategy (Semantic Chunking)
 
+### How It Works
 1. **Sentence Segmentation:** Raw articles are split into discrete sentences.
 2. **Batch Embedding:** 768-dim embeddings extracted in mini-batches via Ollama.
-3. **Cosine Distance Calculation:** Consecutive sentence distance ($d_i = 1.0 - \text{CosineSimilarity}(v_i, v_{i+1})$) is computed.
+3. **Cosine Distance Calculation:** The semantic distance between consecutive sentence embeddings is calculated.
 4. **Breakpoint Detection:** Points exceeding `SEMANTIC_THRESHOLD_PERCENTILE = 85` are identified as topic shifts, creating natural chunk boundaries.
+
+### Advantages of Semantic Chunking Over Alternatives
+
+| Chunking Strategy | Description / Mechanism | Drawbacks & Disadvantages |
+| :--- | :--- | :--- |
+| **Fixed-Size Chunking** | Splits text into fixed character or word counts (e.g., 500 characters with 50-character overlap). | **Context Disruption:** Arbitrarily cuts sentences and paragraphs mid-thought, severing clinical context and splitting vital medical descriptions across chunk boundaries. |
+| **Recursive Character Chunking** | Splits text using hierarchical structural separators (e.g., `\n\n`, `\n`, ` `). | **Syntax-Bound, Not Meaning-Bound:** Relies purely on structural formatting (punctuation/newlines) rather than actual semantic shifts. Structural breaks do not always correspond to topic changes. |
+| **Semantic Chunking (Chosen)** | Groups sentences based on embedding vector similarity and splits only at statistical semantic breakpoints (85th percentile threshold). | **Preserves Semantic Coherence:** Dynamically sizes chunks according to topic boundaries. Ensures every chunk forms a complete, self-contained medical concept, maximizing retrieval accuracy for RAG. |
+
+#### Key Benefits in Medical RAG:
+1. **Preservation of Contextual Integrity:** Medical explanations (e.g., symptoms, treatment protocols, diagnostic steps) remain intact in a single coherent chunk rather than being fragmented mid-sentence or mid-explanation.
+2. **Dynamic & Adaptive Boundaries:** Chunks adjust dynamically based on narrative depth—short medical facts produce compact chunks, while detailed clinical guides form larger, self-contained passages without artificial character limits.
+3. **Superior Retrieval & Reranking Precision:** Vector representations of semantically unified chunks are significantly less noisy, boosting both Stage-1 Bi-Encoder retrieval precision and Stage-2 Cross-Encoder reranking accuracy.
 
 ---
 
