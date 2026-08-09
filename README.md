@@ -50,23 +50,23 @@ The system features an **Agentic Decision Layer** powered by **Qwen2.5:7b** via 
 
 ```mermaid
 graph TD
-    A["Kullanıcı Mesajı"] --> B["Qwen2.5:7b Niyet Analizi & Araç Tanımı"]
-    B -->|Arama Gerekmiyor: Günlük Selamlaşma| C["Doğrudan Sohbet Yanıtı - 0ms Vektör Araması"]
-    B -->|Arama Gerekmiyor: Tıbbi Dışı Konu| D["Kapsam Dışı Reddetme Mesajı"]
-    B -->|Araç Tetiklendi: search_medical_database| E["Hibrit Vektör Arama: Ollama 768d + BM25"]
+    A["User Input Message"] --> B["Qwen2.5:7b Intent Analysis & Tool Definition"]
+    B -->|No Search Needed: Casual Chitchat| C["Direct Chitchat Response - 0ms Vector Search"]
+    B -->|No Search Needed: Non-Medical Topic| D["Out-of-Scope Refusal Message"]
+    B -->|Tool Triggered: search_medical_database| E["Hybrid Vector Search: Ollama 768d + BM25"]
     E --> F["Cross-Encoder Reranker: ms-marco-MiniLM-L6"]
-    F --> G["Güvenlik Filtresi Safety Gate >= 0.48"]
-    G -->|Tıbbi Kaynaklar Bulundu| H["Atıflı Tıbbi Sentez Yanıtı [Kaynak N] + Kaynak Kartları"]
-    G -->|Eşik Altında / Eşleşme Yok| I["Güvenlik Uyarısı Bineri"]
+    F --> G["Safety Gate Similarity Threshold >= 0.48"]
+    G -->|Medical Sources Found| H["Citation-Backed Medical Answer [Kaynak N] + Source Cards"]
+    G -->|Below Threshold / No Match| I["Safety Warning Response"]
     style C fill:#34d399,stroke:#333,color:#fff
     style D fill:#f87171,stroke:#333,color:#fff
     style H fill:#38bdf8,stroke:#333,color:#fff
 ```
 
 #### 📋 Intent Decision Rules:
-1. **Günlük Selamlaşma (*"Merhaba"*, *"Nasılsın"*):** Doğrudan sohbet yanıtı verilir, vektör veritabanı araması tamamen atlanır (0ms).
-2. **Tıbbi Dışı Konular (*Yazılım, Yemek, Spor, Siber Güvenlik vb.*):** Doğrudan reddetme mesajı verilir (*"Maalesef, ben yalnızca sağlık ve tıp alanında hizmet veren bir bilgi asistanıyım. Bu konuda yardımcı olamam. Sağlık alanında bir sorunuz var mıdır?"*).
-3. **Tıbbi Sorular (*"Diyabet belirtileri nedir?"*):** Otomatik `search_medical_database` aracı çağrılır. Veritabanından çekilen hastane makaleleri ile atıflı (`[Kaynak 1]`) yanıt sentezlenir.
+1. **Casual Chitchat (*"Hello"*, *"How are you"*):** Responded to directly; vector database search is completely bypassed (0ms latency).
+2. **Non-Medical Topics (*Software, Cooking, Sports, Cybersecurity, etc.*):** Responded to with a polite refusal message (*"Unfortunately, I am an AI information assistant dedicated solely to health and medicine. I cannot assist with this topic. Do you have a health-related question?"*).
+3. **Medical Queries (*"What are the symptoms of diabetes?"*):** Automatically invokes the `search_medical_database` tool. Retrieves medical articles from the vector database and synthesizes a citation-backed (`[Kaynak 1]`) answer.
 
 ---
 
