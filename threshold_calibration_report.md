@@ -2,6 +2,8 @@
 
 This report presents the empirical calibration results for **Ollama (`embeddinggemma:300m`)** and **ChromaDB** using **20 Positive (Relevant Medical)** and **10 Negative (Irrelevant Non-Medical)** queries evaluated against **446 medical text chunks**.
 
+> 💡 **Data & Script Reference:** The dataset queries (20 positive & 10 negative benchmark queries), data collection, and score evaluation logic are defined in [benchmark_threshold.py](file:///c:/Users/90535/source/magibu/MedRAG/benchmark_threshold.py). Run `python benchmark_threshold.py` to reproduce these statistical metrics.
+
 ---
 
 ## 📊 1. Statistical Similarity Score Distribution
