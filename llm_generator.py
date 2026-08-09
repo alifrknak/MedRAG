@@ -31,7 +31,7 @@ INTENT_SYSTEM_PROMPT = """Sen MedRAG klinik sağlık asistanısın. Kullanıcın
 Kullanıcı herhangi bir hastalık, semptom, sağlık sorusu, tedavi, ameliyat, ilaç, ağrı, yaralanma, beslenme/diyet veya vücut sağlığı ile ilgili soru sorduğunda (Örn: 'tedavi nasıl yapılır', 'nedir', 'belirtileri nelerdir', 'ne yapmalıyım', 'ilaç kullanımı', 'parmağım kesildi', 'renk körlüğü' vb.) KESİNLİKLE 'search_medical_database' fonksiyonunu çağır. Kendi genel bilgilerinden doğrudan tıbbi yanıt VERME.
 
 2. KURAL (GÜNLÜK SELAMLAŞMA & SOHBET):
-Kullanıcı YALNIZCA 'merhaba', 'selam', 'nasılsın', 'teşekkürler', 'iyi günler', 'sen kimsin' gibi günlük nezaket/tanışma ifadeleri kullandığında fonksiyon çağırma; doğrudan nazik ve yardımsever bir karşılama yanıtı ver (Örn: "Merhaba! Ben MedRAG Sağlık Asistanı. Sağlığınızla ilgili nasıl yardımcı olabilirim?").
+Kullanıcı 'merhaba', 'selam', 'nasılsın', 'nasıl gidiyor', 'teşekkürler', 'iyi günler', 'sen kimsin' gibi günlük nezaket, tanışma veya sohbet ifadeleri kullandığında fonksiyon çağırma; doğrudan nazik ve yardımsever bir karşılama yanıtı ver (Örn: "Merhaba! Ben MedRAG Sağlık Asistanı. İyiyim, teşekkürler! Sağlığınızla ilgili nasıl yardımcı olabilirim?").
 
 3. KURAL (TIBBİ DIŞI KONULAR):
 Kullanıcı sağlık ve tıp DIŞINDAKİ konularda (yazılım, kodlama, yemek tarifi, siber güvenlik, spor, finans vb.) soru sorduğunda fonksiyon çağırma; KESİNLİKLE tam olarak şu standart reddetme yanıtını ver:
@@ -75,22 +75,12 @@ class LLMGenerator:
             pass
         return False
 
-    def _is_simple_greeting(self, text: str) -> bool:
-        cleaned = text.strip().lower().strip("?!.,")
-        greetings = {
-            "merhaba", "selam", "selamlar", "nasılsın", "iyi günler", 
-            "günaydın", "iyi akşamlar", "teşekkürler", "teşekkür ederim", 
-            "sağol", "hoşçakal", "baybay", "güle güle", "sen kimsin", 
-            "kimsin", "ne yapabilirsin", "yardım et"
-        }
-        return cleaned in greetings
-
     def process_chat(self, user_query: str, search_executor: Callable[[str], List[Dict[str, Any]]]) -> Dict[str, Any]:
         """
         Agentic Chat Processing Flow:
         Step 1: Pass query + tool definition to Qwen2.5:7b.
         Step 2: Inspect if Qwen2.5:7b emitted a tool call to 'search_medical_database'.
-        - If NO Tool Call: Verify if greeting/non-medical refusal. If medical, force vector search fallback.
+        - If NO Tool Call: LLM classified input as Greeting/Daily Chat or Non-Medical Refusal. Return direct LLM content without vector search.
         - If Tool Call Emitted: Execute search_executor(medical_query), then synthesize RAG answer with citations.
         """
         logger.info(f"Processing query via Agentic LLM ({self.model_name}): '{user_query}'")
@@ -120,33 +110,20 @@ class LLMGenerator:
             message = res_json.get("message", {})
             tool_calls = message.get("tool_calls", [])
 
-            # Case A: No Tool Call Emitted by Ollama
+            # Case A: No Tool Call Emitted by Ollama (Daily Greeting / Conversational Chat / Refusal)
             if not tool_calls:
                 llm_response_text = message.get("content", "").strip()
 
-                # Check if it's a simple daily greeting
-                if self._is_simple_greeting(user_query):
-                    if not llm_response_text:
-                        llm_response_text = "Merhaba! Ben MedRAG Sağlık Asistanı. Sağlığınızla ilgili nasıl yardımcı olabilirim?"
-                    return {
-                        "search_executed": False,
-                        "safety_gate_triggered": False,
-                        "synthesized_answer": llm_response_text,
-                        "results": []
-                    }
+                if not llm_response_text:
+                    llm_response_text = "Merhaba! Ben MedRAG Sağlık Asistanı. Sağlığınızla ilgili nasıl yardımcı olabilirim?"
 
-                # Check if LLM emitted a standard non-medical refusal
-                if "yalnızca sağlık ve tıp alanında" in llm_response_text.lower() or "bu konuda yardımcı olamam" in llm_response_text.lower():
-                    return {
-                        "search_executed": False,
-                        "safety_gate_triggered": False,
-                        "synthesized_answer": llm_response_text,
-                        "results": []
-                    }
-
-                # If LLM responded directly without tool call for a medical query, FORCE VECTOR SEARCH FALLBACK!
-                logger.warning(f"LLM did not emit tool_call for query '{user_query}'. Forcing fallback vector search to prevent hallucination.")
-                return self._execute_fallback_search(user_query, search_executor)
+                logger.info(f"No tool call emitted for query '{user_query}'. Returning direct LLM response without vector search.")
+                return {
+                    "search_executed": False,
+                    "safety_gate_triggered": False,
+                    "synthesized_answer": llm_response_text,
+                    "results": []
+                }
 
             # Case B: Tool Call Triggered (Medical Question)
             tool_call = tool_calls[0]
