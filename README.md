@@ -260,6 +260,13 @@ python main.py "Diyabet hastalığının belirtileri ve tedavisi nedir?"
 python main.py "siber güvenlik"
 ```
 
+### Launch Interactive Web UI & REST API
+```bash
+python run_webui.py
+# Open Web UI in browser: http://localhost:8000
+# OpenAPI Docs: http://localhost:8000/docs
+```
+
 ### Inspect Database Contents
 ```bash
 python view_db.py
@@ -270,7 +277,7 @@ python view_db.py
 ## 12. Future Roadmap & TODOs
 
 - [ ] **1. Generative LLM Integration (Chatbot Response Layer):** Integrate local LLMs via Ollama (`gemma2:9b` or `qwen2.5:7b`) to synthesize fluid, grounded, citation-backed Turkish medical answers from retrieved passages.
-- [ ] **2. REST API & Web UI:** Develop a FastAPI backend (`/api/v1/search`, `/api/v1/rag`) and an interactive Web UI (Streamlit / React) for clinical and public query interfaces.
+- [x] **2. REST API & Web UI:** Develop a FastAPI backend (`/api/v1/search`, `/api/v1/stats`) and an interactive Web UI for clinical and public query interfaces.
 - [ ] **3. Custom Document Ingestion (PDF / OCR Parser):** Implement PyPDF and Unstructured document loaders to allow uploading custom medical lab results, PDF reports, and patient epikriz notes into ChromaDB.
 - [ ] **4. Automated RAG Evaluation Framework (RAGAS):** Integrate the RAGAS framework to evaluate Faithfulness (Hallucination detection), Answer Relevance, and Context Precision automatically against synthetic medical benchmarks.
 
