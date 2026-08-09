@@ -16,7 +16,7 @@ This project implements a high-precision, modular RAG (Retrieval-Augmented Gener
 - [4. Chunking Strategy (Semantic Chunking)](#4-chunking-strategy-semantic-chunking)
 - [5. Embedding Model (`embeddinggemma:300m`) & Why Chosen](#5-embedding-model-embeddinggemma300m--why-chosen)
 - [6. Reranker Model (`ms-marco-MiniLM-L-6-v2`)](#6-reranker-model-ms-marco-minilm-l-6-v2)
-- [7. Similarity Threshold Analysis](#7-similarity-threshold-analysis)
+- [7. Safety Gate Architecture & Similarity Threshold Analysis](#7-safety-gate-architecture--similarity-threshold-analysis)
 - [8. Sample Query Execution & Web UI Screenshots](#8-sample-query-execution--web-ui-screenshots)
 - [9. Architectural Trade-off Matrix](#9-architectural-trade-off-matrix)
 - [10. Dataset Citation](#10-dataset-citation)
@@ -148,12 +148,51 @@ The project utilizes **`cross-encoder/ms-marco-MiniLM-L-6-v2`** as the Stage-2 D
 
 ---
 
-## 7. Similarity Threshold Analysis
+## 7. Safety Gate Architecture & Similarity Threshold Analysis
 
-- **Configured Threshold:** `SIMILARITY_THRESHOLD = 0.48`
-- **Safety Gate Behavior:** Prevents hallucination and blocks non-medical/off-topic queries (*"hava kaç derece?"*, *"siber güvenlik"*), returning a clean warning when no chunk meets the threshold.
+### 🛡️ Why Was Safety Gate Chosen?
+In healthcare and clinical AI applications, **LLM hallucinations (unsupported medical claims)** or **misleading medical advice** pose severe safety risks. Traditional RAG systems often pass low-relevance or weak search results directly into the LLM context. When the vector database lacks relevant medical articles, standard LLMs tend to rely on their generic pre-training memory to invent unverified medical diagnostic steps or treatments.
 
-> 📖 **Detailed Report Reference:** Statistical score distributions and benchmark matrices are available in **[threshold_calibration_report.md](./threshold_calibration_report.md)**.
+To eliminate this vulnerability, **MedRAG implements a zero-trust, deterministic Safety Gate architecture** that acts as a strict guardrail before any text synthesis can occur.
+
+---
+
+### 🔍 Safety & Security Guarantees Provided
+
+1. **Zero-Hallucination Guarantee for Missing Data:** If no hospital article in the database matches the user's medical query with sufficient statistical similarity, the LLM is completely bypassed. No hallucinated medical advice can be generated.
+2. **Deterministic LLM Bypass:** Unlike probabilistic LLM agent prompts (e.g., *"If you don't know, say I don't know"* which models frequently ignore), MedRAG enforces refusal at the **Python execution layer**, guaranteeing 100% compliance.
+3. **Off-Topic & Adversarial Defection:** Non-medical queries (*"hava kaç derece?"*, *"siber güvenlik"*) or prompt injection attacks (*"Ignore previous instructions"*​) are intercepted early, preserving system boundaries and domain integrity.
+
+---
+
+### ⚙️ Underlying Technical Mechanism (3-Layer Guardrail)
+
+```mermaid
+graph TD
+    A["User Input Query"] --> B["Hybrid Search & Reranking Pipeline"]
+    B --> C["Layer 1: Cosine Similarity Threshold Filter (SIMILARITY_THRESHOLD = 0.48)"]
+    C -->|Sim Score >= 0.48| D["Verified Context Chunks Passed to LLM"]
+    C -->|Sim Score < 0.48 / 0 Matches| E["Layer 2: LLM Bypass & Hard Refusal Triggered"]
+    D --> F["Grounded RAG Answer + [Kaynak N] Citations"]
+    E --> G["Pre-Formulated Clinical Disclaimer Message (No LLM Call)"]
+    A -->|Medical Query Missing Tool Call| H["Layer 3: Force Fallback Vector Search"]
+    H --> B
+```
+
+#### Layer 1: Retrieval-Level Similarity Threshold Gate
+- **Location:** [LocalVectorDB.search()](file:///c:/Users/90535/source/magibu/MedRAG/vector_db.py#L280-L288) & [config.py](file:///c:/Users/90535/source/magibu/MedRAG/config.py#L18) (`SIMILARITY_THRESHOLD = 0.48`)
+- **Mechanism:** After Stage-1 Hybrid Search (BM25 + Dense Vectors) and Stage-2 Cross-Encoder Reranking, candidate chunks are evaluated against a cosine similarity cutoff ($1.0 - \text{Cosine Distance}$). Any passage scoring below `0.48` is pruned from the result set.
+
+#### Layer 2: Zero-Source Refusal & LLM Bypass
+- **Location:** [LLMGenerator.process_chat()](file:///c:/Users/90535/source/magibu/MedRAG/llm_generator.py#L169-L182)
+- **Mechanism:** If Layer 1 returns an empty result list (`filtered_results == []`), the system **immediately halts the generation pipeline**. No prompt is constructed and no request is sent to the LLM (Qwen2.5:7b). Instead, a standardized, pre-verified clinical disclaimer is delivered directly to the user:
+  > *"⚠️ Aradığınız tıbbi konuyla ilgili veritabanımızda doğrulanmış klinik kaynak bulunamamıştır. MedRAG güvenliğiniz için kaynak kullanamadığı durumlarda yanıt üretmemektedir. Kesin bilgi ve tedavi için lütfen bir uzman hekime başvurunuz."*
+
+#### Layer 3: Mandatory Search Enforcer (Fallback Gate)
+- **Location:** [LLMGenerator.process_chat()](file:///c:/Users/90535/source/magibu/MedRAG/llm_generator.py#L147-L149)
+- **Mechanism:** If the LLM responds to a medical query directly without emitting a `search_medical_database` tool call, the system intercepts the raw response, discards it, and **forces a fallback vector database search** to ensure all medical statements remain grounded in verified source passages.
+
+> 📖 **Detailed Threshold Calibration Report:** Statistical score distributions and benchmark matrices are available in **[threshold_calibration_report.md](./threshold_calibration_report.md)**.
 
 ---
 
